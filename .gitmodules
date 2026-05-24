@@ -1,3 +1,6 @@
 [submodule "vendor/odin-imgui"]
 	path = vendor/odin-imgui
 	url = https://gitlab.com/L-4/odin-imgui.git
+[submodule "vendor/odin-sqlite3"]
+	path = vendor/odin-sqlite3
+	url = https://github.com/saenai255/odin-sqlite3.git
