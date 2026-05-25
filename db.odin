@@ -5,15 +5,39 @@ import "core:encoding/uuid"
 import "core:strings"
 import sqlite "vendor/odin-sqlite3"
 
-connect :: proc() -> (^sqlite.Connection, sqlite.Result_Code) {
-	db: ^sqlite.Connection = nil
-	if rc := sqlite.open("./db.sqlite", &db); rc != .Ok {
-		return nil, rc
-	}
-	return db, .Ok
+DB_Error :: union {
+	DB_Open_Failed,
+	DB_Exec_Failed,
+	DB_Prepare_Failed,
+	DB_Step_Failed,
 }
 
-create_tables :: proc(db: ^sqlite.Connection) {
+DB_Open_Failed :: struct {
+	message: string,
+}
+
+DB_Exec_Failed :: struct {
+	message: string,
+}
+
+DB_Prepare_Failed :: struct {
+	message: string,
+}
+
+DB_Step_Failed :: struct {
+	message: string,
+}
+
+
+connect :: proc() -> (^sqlite.Connection, DB_Error) {
+	db: ^sqlite.Connection = nil
+	if rc := sqlite.open("./db.sqlite", &db); rc != .Ok {
+		return nil, DB_Open_Failed{message = "failed to open database"}
+	}
+	return db, nil
+}
+
+create_tables :: proc(db: ^sqlite.Connection) -> DB_Error {
 	credential_table_sql: cstring = `
 		CREATE TABLE IF NOT EXISTS credentials (
 		    id TEXT PRIMARY KEY,
@@ -28,28 +52,26 @@ create_tables :: proc(db: ^sqlite.Connection) {
 		);`
 
 	if sqlite.exec(db, credential_table_sql, nil, nil, nil) != .Ok {
-		panic("exec failed")
+		return DB_Exec_Failed{message = "failed to create credentials table"}
 	}
 
 	connection_table_sql: cstring = `
 		CREATE TABLE IF NOT EXISTS connections (
 		    id TEXT PRIMARY KEY,
-		    name TEXT NOT NULL,
+		    name TEXT NOT NULL UNIQUE,
 		    db_type TEXT NOT NULL
 		        CHECK(db_type IN (
 		            'postgres',
-		            'sqlite',
-		            'mysql',
-		            'mssql'
+		            'sqlite'
 		        )),
 
-		    host TEXT,
-		    port INTEGER,
-		    database_name TEXT,
-		    username TEXT,
+		    host TEXT NOT NULL,
+		    port INTEGER NOT NULL,
+		    database_name TEXT NOT NULL,
+		    username TEXT NOT NULL,
 
 		    ssl_enabled INTEGER NOT NULL DEFAULT 0,
-		    credential_id TEXT,
+		    credential_id TEXT NOT NULL,
 		    color TEXT,
 		    icon TEXT,
 		    is_favorite INTEGER DEFAULT 0,
@@ -62,7 +84,7 @@ create_tables :: proc(db: ^sqlite.Connection) {
 		);`
 
 	if sqlite.exec(db, connection_table_sql, nil, nil, nil) != .Ok {
-		panic("exec failed")
+		return DB_Exec_Failed{message = "failed to create connections table"}
 	}
 
 	query_history_sql: cstring = `
@@ -77,7 +99,7 @@ create_tables :: proc(db: ^sqlite.Connection) {
 		);`
 
 	if sqlite.exec(db, query_history_sql, nil, nil, nil) != .Ok {
-		panic("exec failed")
+		return DB_Exec_Failed{message = "failed to create query_history table"}
 	}
 
 	tabs_sql: cstring = `
@@ -91,23 +113,30 @@ create_tables :: proc(db: ^sqlite.Connection) {
 		);`
 
 	if sqlite.exec(db, tabs_sql, nil, nil, nil) != .Ok {
-		panic("exec failed")
+		return DB_Exec_Failed{message = "failed to create tabs table"}
 	}
+
+	return nil
+}
+
+Database_Type :: enum {
+	Postgres,
+	SQLite,
 }
 
 Connection :: struct {
 	id:                string,
 	name:              string,
-	db_type:           string,
-	host:              ^string,
-	port:              ^int,
-	database_name:     ^string,
-	username:          ^string,
-	sql_enabled:       int,
-	credential_id:     ^string,
+	db_type:           Database_Type,
+	host:              string,
+	port:              int,
+	db_name:           string,
+	username:          string,
+	sql_enabled:       bool,
+	credential_id:     string,
 	color:             ^string,
 	icon:              ^string,
-	is_favorite:       int,
+	is_favorite:       bool,
 	created_at:        string,
 	updated_at:        string,
 	last_connected_at: ^string,
@@ -121,8 +150,7 @@ SQLite_Datatypes :: enum {
 	NULL    = 5,
 }
 
-
-get_connections :: proc(db: ^sqlite.Connection) -> []Connection {
+get_connections :: proc(db: ^sqlite.Connection) -> ([]Connection, DB_Error) {
 	sql: cstring = `
 		SELECT
 			id,
@@ -144,7 +172,7 @@ get_connections :: proc(db: ^sqlite.Connection) -> []Connection {
 
 	stmt: ^sqlite.Statement
 	if sqlite.prepare_v2(db, sql, -1, &stmt, nil) != .Ok {
-		panic("prepare failed")
+		return nil, DB_Prepare_Failed{message = "prepare failed"}
 	}
 	defer sqlite.finalize(stmt)
 
@@ -154,33 +182,23 @@ get_connections :: proc(db: ^sqlite.Connection) -> []Connection {
 		conn := Connection{}
 		conn.id = strings.clone_from(sqlite.column_text(stmt, 0))
 		conn.name = strings.clone_from(sqlite.column_text(stmt, 1))
-		conn.db_type = strings.clone_from(sqlite.column_text(stmt, 2))
 
-		if SQLite_Datatypes(sqlite.column_type(stmt, 3)) != .NULL {
-			s := strings.clone_from(sqlite.column_text(stmt, 3))
-			conn.host = new_clone(s)
+		db_type := strings.clone_from(sqlite.column_text(stmt, 2))
+		switch db_type {
+		case "postgres":
+			conn.db_type = Database_Type.Postgres
+
+		case "sqlite":
+			conn.db_type = Database_Type.SQLite
 		}
 
-		if SQLite_Datatypes(sqlite.column_type(stmt, 4)) != .NULL {
-			v := int(sqlite.column_int(stmt, 4))
-			conn.port = new_clone(v)
-		}
+		conn.host = strings.clone_from(sqlite.column_text(stmt, 3))
+		conn.port = int(sqlite.column_int(stmt, 4))
+		conn.db_name = strings.clone_from(sqlite.column_text(stmt, 5))
+		conn.username = strings.clone_from(sqlite.column_text(stmt, 6))
 
-		if SQLite_Datatypes(sqlite.column_type(stmt, 5)) != .NULL {
-			s := strings.clone_from(sqlite.column_text(stmt, 5))
-			conn.database_name = new_clone(s)
-		}
-
-		if SQLite_Datatypes(sqlite.column_type(stmt, 6)) != .NULL {
-			s := strings.clone_from(sqlite.column_text(stmt, 6))
-			conn.username = new_clone(s)
-		}
-
-		conn.sql_enabled = int(sqlite.column_int(stmt, 7))
-		if SQLite_Datatypes(sqlite.column_type(stmt, 8)) != .NULL {
-			s := strings.clone_from(sqlite.column_text(stmt, 8))
-			conn.credential_id = new_clone(s)
-		}
+		conn.sql_enabled = true if int(sqlite.column_int(stmt, 7)) == 1 else false
+		conn.credential_id = strings.clone_from(sqlite.column_text(stmt, 8))
 
 		if SQLite_Datatypes(sqlite.column_type(stmt, 9)) != .NULL {
 			s := strings.clone_from(sqlite.column_text(stmt, 9))
@@ -192,7 +210,7 @@ get_connections :: proc(db: ^sqlite.Connection) -> []Connection {
 			conn.icon = new_clone(s)
 		}
 
-		conn.is_favorite = int(sqlite.column_int(stmt, 11))
+		conn.is_favorite = true if int(sqlite.column_int(stmt, 11)) == 1 else false
 		conn.created_at = strings.clone_from(sqlite.column_text(stmt, 12))
 		conn.updated_at = strings.clone_from(sqlite.column_text(stmt, 13))
 		if SQLite_Datatypes(sqlite.column_type(stmt, 14)) != .NULL {
@@ -203,7 +221,7 @@ get_connections :: proc(db: ^sqlite.Connection) -> []Connection {
 		append(&connections, conn)
 	}
 
-	return connections[:]
+	return connections[:], nil
 }
 
 New_Credential :: struct {
@@ -217,7 +235,13 @@ Credential :: struct {
 	secret_key: string,
 }
 
-create_credential :: proc(db: ^sqlite.Connection, creds: ^New_Credential) -> Credential {
+create_credential :: proc(
+	db: ^sqlite.Connection,
+	creds: ^New_Credential,
+) -> (
+	^Credential,
+	DB_Error,
+) {
 	creds_sql: cstring = `
 		INSERT INTO credentials (
 			id, auth_type, secret_key
@@ -225,7 +249,7 @@ create_credential :: proc(db: ^sqlite.Connection, creds: ^New_Credential) -> Cre
 
 	stmt: ^sqlite.Statement
 	if sqlite.prepare_v2(db, creds_sql, -1, &stmt, nil) != .Ok {
-		panic("prepare_v2 failed")
+		return nil, DB_Prepare_Failed{message = "prepare_v2 failed"}
 	}
 	defer sqlite.finalize(stmt)
 
@@ -246,7 +270,7 @@ create_credential :: proc(db: ^sqlite.Connection, creds: ^New_Credential) -> Cre
 	sqlite.bind_text(stmt, 3, secret_key_cstr, -1, sqlite_destructor)
 
 	if sqlite.step(stmt) != .Done {
-		panic("step failed")
+		return nil, DB_Step_Failed{message = "step failed"}
 	}
 
 	cred := Credential {
@@ -255,12 +279,12 @@ create_credential :: proc(db: ^sqlite.Connection, creds: ^New_Credential) -> Cre
 		secret_key = strings.clone_from(secret_key_cstr),
 	}
 
-	return cred
+	return new_clone(cred), nil
 }
 
 New_Connection :: struct {
 	name:          string,
-	db_type:       string,
+	db_type:       Database_Type,
 	host:          string,
 	port:          int,
 	database_name: string,
@@ -273,7 +297,7 @@ New_Connection :: struct {
 }
 
 
-create_connection :: proc(db: ^sqlite.Connection, new_conn: ^New_Connection) {
+create_connection :: proc(db: ^sqlite.Connection, new_conn: ^New_Connection) -> DB_Error {
 	conn_sql: cstring = `
 		INSERT INTO connections (
 			id,
@@ -292,7 +316,7 @@ create_connection :: proc(db: ^sqlite.Connection, new_conn: ^New_Connection) {
 
 	stmt: ^sqlite.Statement
 	if sqlite.prepare_v2(db, conn_sql, -1, &stmt, nil) != .Ok {
-		panic("prepare_v2 failed")
+		return DB_Prepare_Failed{message = "prepare_v2 failed"}
 	}
 	defer sqlite.finalize(stmt)
 
@@ -308,7 +332,14 @@ create_connection :: proc(db: ^sqlite.Connection, new_conn: ^New_Connection) {
 	defer delete(name_cstr)
 	sqlite.bind_text(stmt, 2, name_cstr, -1, sqlite_destructor)
 
-	db_type_cstr := strings.clone_to_cstring(new_conn.db_type)
+	db_type_str: string
+	switch new_conn.db_type {
+	case .Postgres:
+		db_type_str = "postgres"
+	case .SQLite:
+		db_type_str = "sqlite"
+	}
+	db_type_cstr := strings.clone_to_cstring(db_type_str)
 	defer delete(db_type_cstr)
 	sqlite.bind_text(stmt, 3, db_type_cstr, -1, sqlite_destructor)
 
@@ -350,8 +381,10 @@ create_connection :: proc(db: ^sqlite.Connection, new_conn: ^New_Connection) {
 
 	sqlite.bind_int(stmt, 12, c.int(0 if !new_conn.is_favorite else 1))
 	if sqlite.step(stmt) != .Done {
-		panic("step failed")
+		return DB_Step_Failed{message = "step failed"}
 	}
+
+	return nil
 }
 
 Db_New_Connection :: struct {
@@ -359,13 +392,21 @@ Db_New_Connection :: struct {
 	conn:       ^New_Connection,
 }
 
-save_db_connection :: proc(db: ^sqlite.Connection, new_conn: ^Db_New_Connection) {
+save_db_connection :: proc(db: ^sqlite.Connection, new_conn: ^Db_New_Connection) -> DB_Error {
+	if sqlite.exec(db, "BEGIN", nil, nil, nil) != .Ok {
+		return DB_Step_Failed{message = "BEGIN failed"}
+	}
+
 	new_cred := New_Credential {
 		auth_type  = new_conn.credential.auth_type,
 		secret_key = new_conn.credential.secret_key,
 	}
 
-	cred := create_credential(db, &new_cred)
+	cred, err := create_credential(db, &new_cred)
+	if err != nil {
+		sqlite.exec(db, "ROLLBACK", nil, nil, nil)
+		return err
+	}
 
 	conn := New_Connection {
 		name          = new_conn.conn.name,
@@ -381,8 +422,20 @@ save_db_connection :: proc(db: ^sqlite.Connection, new_conn: ^Db_New_Connection)
 		is_favorite   = new_conn.conn.is_favorite,
 	}
 
-	create_connection(db, &conn)
+	err = create_connection(db, &conn)
+	if err != nil {
+		sqlite.exec(db, "ROLLBACK", nil, nil, nil)
+		return err
+	}
+
+	if sqlite.exec(db, "COMMIT", nil, nil, nil) != .Ok {
+		sqlite.exec(db, "ROLLBACK", nil, nil, nil)
+		return DB_Step_Failed{message = "COMMIT failed"}
+	}
+
+	return nil
 }
+
 
 create_id :: proc() -> string {
 	return uuid.to_string(uuid.generate_v7())

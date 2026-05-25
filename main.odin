@@ -1,6 +1,7 @@
 package main
 
 import "core:log"
+import "core:mem"
 import im "vendor/odin-imgui"
 import "vendor/odin-imgui/imgui_impl_sdl2"
 import imgui_sql_renderer "vendor/odin-imgui/imgui_impl_sdlrenderer2"
@@ -9,6 +10,11 @@ import sqlite "vendor/odin-sqlite3"
 import sdl "vendor:sdl2"
 
 main :: proc() {
+	track: mem.Tracking_Allocator
+	mem.tracking_allocator_init(&track, context.allocator)
+	context.allocator = mem.tracking_allocator(&track)
+	defer mem.tracking_allocator_destroy(&track)
+
 	assert(sdl.Init(sdl.INIT_EVERYTHING) == 0)
 	defer sdl.Quit()
 
@@ -45,32 +51,22 @@ main :: proc() {
 	running := true
 
 	db, db_err := connect()
-	if db_err != .Ok {
-		log.errorf("failed to open database: %v", db_err)
-		return
+	if db_err != nil {
+		log.errorf("%v", db_err)
+		panic(db_err.(DB_Open_Failed).message)
 	}
 	defer sqlite.close(db)
-	create_tables(db)
-	log.info("tables created")
 
-	new_db_conn := Db_New_Connection {
-		credential = &New_Credential{auth_type = "password", secret_key = "root"},
-		conn       = &New_Connection {
-			name = "postgres-local",
-			db_type = "postgres",
-			host = "localhost",
-			port = 5432,
-			database_name = "postgres",
-			username = "postgres",
-			ssl_enabled = true,
-			is_favorite = false,
-		},
+	state := App_State {
+		db     = db,
+		screen = .ConnectionScreen,
 	}
 
-	save_db_connection(db, &new_db_conn)
-
-	conns := get_connections(db)
-	log.info("connections", len(conns))
+	err := create_tables(db)
+	if err != nil {
+		log.errorf("%v", err)
+		panic(err.(DB_Exec_Failed).message)
+	}
 
 	for running {
 		e: sdl.Event
@@ -88,8 +84,15 @@ main :: proc() {
 		imgui_impl_sdl2.NewFrame()
 		im.NewFrame()
 
-		im.DockSpaceOverViewport()
-		im.ShowDemoWindow()
+		// im.DockSpaceOverViewport()
+
+		switch state.screen {
+		case .ConnectionScreen:
+			Connection_Screen(&state)
+		case .DatabaseViewScreen:
+			Database_View_Screen()
+		}
+
 		im.Render()
 
 		sdl.SetRenderDrawColor(renderer, 20, 20, 30, 255)
