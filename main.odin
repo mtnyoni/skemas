@@ -88,9 +88,10 @@ main :: proc() {
 
 		switch state.screen {
 		case .ConnectionScreen:
-			Connection_Screen(&state)
+			UIConnectDB(&state)
+
 		case .DatabaseViewScreen:
-			Database_View_Screen(&state)
+			UIWorkspace(&state)
 		}
 
 		im.Render()

@@ -51,6 +51,42 @@ pg_get_dbs :: proc(conn: ^pq.Conn) -> ([]string, DB_Error) {
 	return dbs, nil
 }
 
+pg_current_db :: proc(conn: ^pq.Conn) -> string {
+	return strings.clone_from_cstring(pq.db(conn^))
+}
+
+pg_connect_to_db :: proc(conn: ^pq.Conn, dbname: string) -> (^pq.Conn, DB_Error) {
+	h := pq.host(conn^)
+	p := pq.port(conn^)
+	u := pq.user(conn^)
+	pw := pq.pass(conn^)
+	if pw == nil {pw = ""}
+
+	sslmode: cstring = "require" if pq.ssl_in_use(conn^) else "disable"
+
+	conn_string := fmt.tprintf(
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		h,
+		p,
+		u,
+		pw,
+		dbname,
+		sslmode,
+	)
+
+	new_conn := pq.connectdb(strings.clone_to_cstring(conn_string, context.temp_allocator))
+	if new_conn == nil {
+		return nil, DB_Open_Failed{message = "connectdb returned nil"}
+	}
+	if pq.status(new_conn) != .Ok {
+		msg := strings.clone_from_cstring(pq.error_message(new_conn))
+		pq.finish(new_conn)
+		return nil, DB_Open_Failed{message = msg}
+	}
+
+	return new_clone(new_conn), nil
+}
+
 pg_get_schemas :: proc(conn: ^pq.Conn) -> ([]string, DB_Error) {
 	sql: cstring = `
 		SELECT schema_name

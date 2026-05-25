@@ -5,7 +5,7 @@ import "core:log"
 import "core:strings"
 import im "vendor/odin-imgui"
 
-Connection_Screen :: proc(state: ^App_State) {
+UIConnectDB :: proc(state: ^App_State) {
 	@(static) name_buf: [256]u8
 	@(static) host_buf: [256]u8
 	@(static) username_buf: [256]u8
@@ -71,6 +71,7 @@ Connection_Screen :: proc(state: ^App_State) {
 					state.needs_db_reload = true
 					conn_error = ""
 					state.screen = .DatabaseViewScreen
+
 				} else {
 					conn_error = conn_err.(DB_Open_Failed).message
 					log.errorf("connect failed: %s", conn_error)

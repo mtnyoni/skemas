@@ -3,10 +3,11 @@ package main
 import "core:strings"
 import im "vendor/odin-imgui"
 
-Database_View_Screen :: proc(state: ^App_State) {
+UIWorkspace :: proc(state: ^App_State) {
 	@(static) loaded_dbs: []string
 	@(static) dbs_loaded: bool
 	@(static) selected_db: string
+	@(static) prev_selected_db: string
 
 	@(static) loaded_schemas: []string
 	@(static) schemas_loaded: bool
@@ -24,16 +25,41 @@ Database_View_Screen :: proc(state: ^App_State) {
 		if err != nil {
 			panic(err.(DB_Open_Failed).message)
 		}
+
 		loaded_dbs = dbs
 		dbs_loaded = true
 		state.needs_db_reload = false
-		selected_db = loaded_dbs[0] if len(loaded_dbs) > 0 else ""
+
+		current_db := pg_current_db(pg_conn)
+		selected_db =
+			current_db if current_db != "" else (loaded_dbs[0] if len(loaded_dbs) > 0 else "")
+		prev_selected_db = selected_db
 		schemas_loaded = false
 		selected_schema = ""
 		prev_selected_schema = ""
 		loaded_tables = {}
 		tables_loaded = false
 		selected_table = ""
+	}
+
+	if selected_db != prev_selected_db {
+		new_conn, err := pg_connect_to_db(pg_conn, selected_db)
+		if err == nil {
+			state.conn = new_conn
+			pg_conn = new_conn
+			schemas_loaded = false
+		} else {
+			// database doesn't allow connections (e.g. template0) — show empty state
+			// without this, schemas_loaded = false would reload from the old connection
+			loaded_schemas = {}
+			schemas_loaded = true
+		}
+		selected_schema = ""
+		prev_selected_schema = ""
+		loaded_tables = {}
+		tables_loaded = false
+		selected_table = ""
+		prev_selected_db = selected_db
 	}
 
 	if !schemas_loaded {
@@ -81,6 +107,10 @@ Database_View_Screen :: proc(state: ^App_State) {
 			defer delete(cname)
 			if im.Selectable(cname, selected_db == db) {
 				selected_db = db
+				loaded_schemas = nil
+				schemas_loaded = false
+				tables_loaded = false
+				loaded_tables = nil
 			}
 		}
 		im.EndCombo()
@@ -119,4 +149,14 @@ Database_View_Screen :: proc(state: ^App_State) {
 		}
 	}
 	im.EndChild()
+
+	im.SetNextWindowPos({0 + sidebar_w, 0}, .Always)
+	im.SetNextWindowSize({display.x - sidebar_w, display.y}, .Always)
+	im.Begin("Workspace", nil, {.NoMove, .NoResize, .NoCollapse, .NoScrollbar})
+	defer im.End()
+
+
+	
+	im.BeginTable("Table", len())
+
 }
