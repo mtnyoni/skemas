@@ -32,7 +32,7 @@ DB_Step_Failed :: struct {
 connect :: proc() -> (^sqlite.Connection, DB_Error) {
 	db: ^sqlite.Connection = nil
 	if rc := sqlite.open("./db.sqlite", &db); rc != .Ok {
-		return nil, DB_Open_Failed{message = "failed to open database"}
+		return nil, DB_Open_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 	return db, nil
 }
@@ -52,7 +52,7 @@ create_tables :: proc(db: ^sqlite.Connection) -> DB_Error {
 		);`
 
 	if sqlite.exec(db, credential_table_sql, nil, nil, nil) != .Ok {
-		return DB_Exec_Failed{message = "failed to create credentials table"}
+		return DB_Exec_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 
 	connection_table_sql: cstring = `
@@ -84,7 +84,7 @@ create_tables :: proc(db: ^sqlite.Connection) -> DB_Error {
 		);`
 
 	if sqlite.exec(db, connection_table_sql, nil, nil, nil) != .Ok {
-		return DB_Exec_Failed{message = "failed to create connections table"}
+		return DB_Exec_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 
 	query_history_sql: cstring = `
@@ -99,7 +99,7 @@ create_tables :: proc(db: ^sqlite.Connection) -> DB_Error {
 		);`
 
 	if sqlite.exec(db, query_history_sql, nil, nil, nil) != .Ok {
-		return DB_Exec_Failed{message = "failed to create query_history table"}
+		return DB_Exec_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 
 	tabs_sql: cstring = `
@@ -113,7 +113,7 @@ create_tables :: proc(db: ^sqlite.Connection) -> DB_Error {
 		);`
 
 	if sqlite.exec(db, tabs_sql, nil, nil, nil) != .Ok {
-		return DB_Exec_Failed{message = "failed to create tabs table"}
+		return DB_Exec_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 
 	return nil
@@ -172,7 +172,7 @@ get_connections :: proc(db: ^sqlite.Connection) -> ([]Connection, DB_Error) {
 
 	stmt: ^sqlite.Statement
 	if sqlite.prepare_v2(db, sql, -1, &stmt, nil) != .Ok {
-		return nil, DB_Prepare_Failed{message = "prepare failed"}
+		return nil, DB_Prepare_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 	defer sqlite.finalize(stmt)
 
@@ -249,7 +249,7 @@ create_credential :: proc(
 
 	stmt: ^sqlite.Statement
 	if sqlite.prepare_v2(db, creds_sql, -1, &stmt, nil) != .Ok {
-		return nil, DB_Prepare_Failed{message = "prepare_v2 failed"}
+		return nil, DB_Prepare_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 	defer sqlite.finalize(stmt)
 
@@ -270,7 +270,7 @@ create_credential :: proc(
 	sqlite.bind_text(stmt, 3, secret_key_cstr, -1, sqlite_destructor)
 
 	if sqlite.step(stmt) != .Done {
-		return nil, DB_Step_Failed{message = "step failed"}
+		return nil, DB_Step_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 
 	cred := Credential {
@@ -316,7 +316,7 @@ create_connection :: proc(db: ^sqlite.Connection, new_conn: ^New_Connection) -> 
 
 	stmt: ^sqlite.Statement
 	if sqlite.prepare_v2(db, conn_sql, -1, &stmt, nil) != .Ok {
-		return DB_Prepare_Failed{message = "prepare_v2 failed"}
+		return DB_Prepare_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 	defer sqlite.finalize(stmt)
 
@@ -381,25 +381,25 @@ create_connection :: proc(db: ^sqlite.Connection, new_conn: ^New_Connection) -> 
 
 	sqlite.bind_int(stmt, 12, c.int(0 if !new_conn.is_favorite else 1))
 	if sqlite.step(stmt) != .Done {
-		return DB_Step_Failed{message = "step failed"}
+		return DB_Step_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 
 	return nil
 }
 
 Db_New_Connection :: struct {
-	credential: ^New_Credential,
-	conn:       ^New_Connection,
+	creds: ^New_Credential,
+	conn:  ^New_Connection,
 }
 
 save_db_connection :: proc(db: ^sqlite.Connection, new_conn: ^Db_New_Connection) -> DB_Error {
 	if sqlite.exec(db, "BEGIN", nil, nil, nil) != .Ok {
-		return DB_Step_Failed{message = "BEGIN failed"}
+		return DB_Step_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 
 	new_cred := New_Credential {
-		auth_type  = new_conn.credential.auth_type,
-		secret_key = new_conn.credential.secret_key,
+		auth_type  = new_conn.creds.auth_type,
+		secret_key = new_conn.creds.secret_key,
 	}
 
 	cred, err := create_credential(db, &new_cred)
@@ -430,7 +430,7 @@ save_db_connection :: proc(db: ^sqlite.Connection, new_conn: ^Db_New_Connection)
 
 	if sqlite.exec(db, "COMMIT", nil, nil, nil) != .Ok {
 		sqlite.exec(db, "ROLLBACK", nil, nil, nil)
-		return DB_Step_Failed{message = "COMMIT failed"}
+		return DB_Step_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 
 	return nil

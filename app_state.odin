@@ -7,6 +7,6 @@ Screen :: enum {
 }
 
 App_State :: struct {
-	db:     ^sqlite.Connection,
+	app_db: ^sqlite.Connection,
 	screen: Screen,
 }

@@ -58,7 +58,7 @@ main :: proc() {
 	defer sqlite.close(db)
 
 	state := App_State {
-		db     = db,
+		app_db = db,
 		screen = .ConnectionScreen,
 	}
 

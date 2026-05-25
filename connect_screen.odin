@@ -5,20 +5,20 @@ import "core:strings"
 import im "vendor/odin-imgui"
 
 Connection_Screen :: proc(state: ^App_State) {
-	@(static) name_buf:    [256]u8
-	@(static) host_buf:    [256]u8
+	@(static) name_buf: [256]u8
+	@(static) host_buf: [256]u8
 	@(static) db_name_buf: [256]u8
-	@(static) username_buf:[256]u8
-	@(static) password_buf:[256]u8
-	@(static) port:        c.int = 5432
-	@(static) db_type:     Database_Type = .Postgres
+	@(static) username_buf: [256]u8
+	@(static) password_buf: [256]u8
+	@(static) port: c.int = 5432
+	@(static) db_type: Database_Type = .Postgres
 	@(static) ssl_enabled: bool
 	@(static) is_favorite: bool
 	@(static) connections: []Connection
-	@(static) loaded:      bool
+	@(static) loaded: bool
 
 	if !loaded {
-		conns, err := get_connections(state.db)
+		conns, err := get_connections(state.app_db)
 		if err == nil {
 			connections = conns
 		}
@@ -30,7 +30,7 @@ Connection_Screen :: proc(state: ^App_State) {
 		.SQLite   = "sqlite",
 	}
 
-	display      := im.GetIO().DisplaySize
+	display := im.GetIO().DisplaySize
 	sidebar_w: f32 = 260
 
 	// Sidebar
@@ -92,23 +92,23 @@ Connection_Screen :: proc(state: ^App_State) {
 
 	if im.Button("Connect", {-1, 0}) {
 		new_conn := Db_New_Connection {
-			credential = &New_Credential {
-				auth_type  = "password",
+			creds = &New_Credential {
+				auth_type = "password",
 				secret_key = strings.clone_from(cast(cstring)&password_buf[0]),
 			},
-			conn       = &New_Connection {
-				name          = strings.clone_from(cast(cstring)&name_buf[0]),
-				db_type       = db_type,
-				host          = strings.clone_from(cast(cstring)&host_buf[0]),
-				port          = int(port),
+			conn  = &New_Connection {
+				name = strings.clone_from(cast(cstring)&name_buf[0]),
+				db_type = db_type,
+				host = strings.clone_from(cast(cstring)&host_buf[0]),
+				port = int(port),
 				database_name = strings.clone_from(cast(cstring)&db_name_buf[0]),
-				username      = strings.clone_from(cast(cstring)&username_buf[0]),
-				ssl_enabled   = ssl_enabled,
-				is_favorite   = is_favorite,
+				username = strings.clone_from(cast(cstring)&username_buf[0]),
+				ssl_enabled = ssl_enabled,
+				is_favorite = is_favorite,
 			},
 		}
 
-		err := save_db_connection(state.db, &new_conn)
+		err := save_db_connection(state.app_db, &new_conn)
 		if err == nil {
 			loaded = false
 			state.screen = .DatabaseViewScreen
