@@ -90,7 +90,7 @@ main :: proc() {
 		case .ConnectionScreen:
 			Connection_Screen(&state)
 		case .DatabaseViewScreen:
-			Database_View_Screen()
+			Database_View_Screen(&state)
 		}
 
 		im.Render()

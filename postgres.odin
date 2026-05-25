@@ -6,26 +6,28 @@ import pq "vendor/odin-postgresql"
 
 make_conn_string :: proc(conn: Db_New_Connection) -> cstring {
 	conn_string := fmt.tprintf(
-		"host=%s port=%d user=%s password=%s",
+		"host=%s port=%d user=%s password=%s sslmode=%s",
 		conn.conn.host,
 		conn.conn.port,
 		conn.conn.username,
 		conn.creds.secret_key,
+		"require" if conn.conn.ssl_enabled else "disable",
 	)
+
 	return strings.clone_to_cstring(conn_string, context.temp_allocator)
 }
 
-pg_connect :: proc(conn: Db_New_Connection) -> (^pq.Conn, DB_Error) {
-	conn := pq.connectdb(make_conn_string(conn))
-	if conn == nil {
-		return nil, DB_Open_Failed{message = strings.clone_from_cstring(pq.error_message(conn))}
+pg_connect :: proc(params: Db_New_Connection) -> (^pq.Conn, DB_Error) {
+	pg_conn := pq.connectdb(make_conn_string(params))
+	if pg_conn == nil {
+		return nil, DB_Open_Failed{message = "connectdb returned nil"}
 	}
 
-	if pq.status(conn) != .Ok {
-		return nil, DB_Open_Failed{message = strings.clone_from_cstring(pq.error_message(conn))}
+	if pq.status(pg_conn) != .Ok {
+		return nil, DB_Open_Failed{message = strings.clone_from_cstring(pq.error_message(pg_conn))}
 	}
 
-	return new_clone(conn), nil
+	return new_clone(pg_conn), nil
 }
 
 pg_get_dbs :: proc(conn: ^pq.Conn) -> ([]string, DB_Error) {
@@ -45,6 +47,7 @@ pg_get_dbs :: proc(conn: ^pq.Conn) -> ([]string, DB_Error) {
 	for i in 0 ..< count {
 		dbs[i] = strings.clone_from_cstring(cstring(pq.get_value(res, i, 0)))
 	}
+
 	return dbs, nil
 }
 
@@ -73,15 +76,17 @@ pg_get_schemas :: proc(conn: ^pq.Conn) -> ([]string, DB_Error) {
 }
 
 pg_get_tables :: proc(conn: ^pq.Conn, schema: string) -> ([]string, DB_Error) {
-	sql := `
+	sql: cstring = `
 		SELECT table_name
 		FROM information_schema.tables
-		WHERE table_schema = '%s' AND table_type = 'BASE TABLE'
+		WHERE table_schema = $1 AND table_type = 'BASE TABLE'
 		ORDER BY table_name;
 	`
-	query := strings.clone_to_cstring(fmt.tprintf(sql, schema), context.temp_allocator)
 
-	res := pq.exec(conn^, query)
+	schema_cstr := strings.clone_to_cstring(schema, context.temp_allocator)
+	schema_val := cast([^]byte)schema_cstr
+
+	res := pq.exec_params(conn^, sql, 1, nil, &schema_val, nil, nil, .Text)
 	defer pq.clear(res)
 
 	if pq.result_status(res) != .Tuples_OK {
@@ -122,7 +127,8 @@ pg_run_query :: proc(conn: ^pq.Conn, query: string) -> (QueryResult, DB_Error) {
 			cells := make([]string, n_cols)
 			for col in 0 ..< n_cols {
 				if bool(pq.get_is_null(res, row, col)) {
-					cells[col] = strings.clone("NULL")
+					cells[col] = "NULL"
+
 				} else {
 					cells[col] = strings.clone_from_cstring(cstring(pq.get_value(res, row, col)))
 				}

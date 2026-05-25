@@ -1,13 +1,13 @@
 package main
 
 import "core:c"
+import "core:log"
 import "core:strings"
 import im "vendor/odin-imgui"
 
 Connection_Screen :: proc(state: ^App_State) {
 	@(static) name_buf: [256]u8
 	@(static) host_buf: [256]u8
-	@(static) db_name_buf: [256]u8
 	@(static) username_buf: [256]u8
 	@(static) password_buf: [256]u8
 	@(static) port: c.int = 5432
@@ -16,6 +16,8 @@ Connection_Screen :: proc(state: ^App_State) {
 	@(static) is_favorite: bool
 	@(static) connections: []Connection
 	@(static) loaded: bool
+	@(static) is_to_save: bool
+	@(static) conn_error: string
 
 	if !loaded {
 		conns, err := get_connections(state.app_db)
@@ -40,7 +42,41 @@ Connection_Screen :: proc(state: ^App_State) {
 	for conn in connections {
 		cname := strings.clone_to_cstring(conn.name)
 		defer delete(cname)
-		im.Selectable(cname)
+		if im.Selectable(cname) {
+			cred, cred_err := get_credential(state.app_db, conn.credential_id)
+
+			if cred_err == nil && conn.db_type == .Postgres {
+				new_cred := New_Credential {
+					auth_type  = cred.auth_type,
+					secret_key = cred.secret_key,
+				}
+
+				new_conn_data := New_Connection {
+					name        = conn.name,
+					db_type     = conn.db_type,
+					host        = conn.host,
+					port        = conn.port,
+					username    = conn.username,
+					ssl_enabled = conn.sql_enabled,
+				}
+
+				params := Db_New_Connection {
+					creds = &new_cred,
+					conn  = &new_conn_data,
+				}
+
+				pg_conn, conn_err := pg_connect(params)
+				if conn_err == nil {
+					state.conn = pg_conn
+					state.needs_db_reload = true
+					conn_error = ""
+					state.screen = .DatabaseViewScreen
+				} else {
+					conn_error = conn_err.(DB_Open_Failed).message
+					log.errorf("connect failed: %s", conn_error)
+				}
+			}
+		}
 	}
 	im.End()
 
@@ -74,9 +110,6 @@ Connection_Screen :: proc(state: ^App_State) {
 	im.SetNextItemWidth(-1)
 	im.InputInt("##port", &port)
 
-	im.Text("Database Name")
-	im.SetNextItemWidth(-1)
-	im.InputText("##database_name", cast(cstring)&db_name_buf[0], len(db_name_buf))
 
 	im.Text("Username")
 	im.SetNextItemWidth(-1)
@@ -88,6 +121,12 @@ Connection_Screen :: proc(state: ^App_State) {
 
 	im.Checkbox("SSL Enabled", &ssl_enabled)
 	im.Checkbox("Favorite", &is_favorite)
+	im.Checkbox("Save DB", &is_to_save)
+	if conn_error != "" {
+		cerr := strings.clone_to_cstring(conn_error)
+		defer delete(cerr)
+		im.TextColored({1, 0.3, 0.3, 1}, cerr)
+	}
 	im.Separator()
 
 	if im.Button("Connect", {-1, 0}) {
@@ -101,17 +140,31 @@ Connection_Screen :: proc(state: ^App_State) {
 				db_type = db_type,
 				host = strings.clone_from(cast(cstring)&host_buf[0]),
 				port = int(port),
-				database_name = strings.clone_from(cast(cstring)&db_name_buf[0]),
 				username = strings.clone_from(cast(cstring)&username_buf[0]),
 				ssl_enabled = ssl_enabled,
 				is_favorite = is_favorite,
 			},
 		}
 
-		err := save_db_connection(state.app_db, &new_conn)
-		if err == nil {
-			loaded = false
-			state.screen = .DatabaseViewScreen
+		if is_to_save {
+			err := save_db_connection(state.app_db, &new_conn)
+			if err != nil {
+				im.OpenPopup("Error")
+			}
+		}
+
+		if new_conn.conn.db_type == .Postgres {
+			pg_conn, conn_err := pg_connect(new_conn)
+			if conn_err == nil {
+				state.conn = pg_conn
+				conn_error = ""
+				loaded = false
+				state.needs_db_reload = true
+				state.screen = .DatabaseViewScreen
+			} else {
+				conn_error = conn_err.(DB_Open_Failed).message
+				log.errorf("connect failed: %s", conn_error)
+			}
 		}
 	}
 }

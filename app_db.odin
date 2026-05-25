@@ -67,7 +67,6 @@ create_tables :: proc(db: ^sqlite.Connection) -> DB_Error {
 
 		    host TEXT NOT NULL,
 		    port INTEGER NOT NULL,
-		    database_name TEXT NOT NULL,
 		    username TEXT NOT NULL,
 
 		    ssl_enabled INTEGER NOT NULL DEFAULT 0,
@@ -130,7 +129,6 @@ Connection :: struct {
 	db_type:           Database_Type,
 	host:              string,
 	port:              int,
-	db_name:           string,
 	username:          string,
 	sql_enabled:       bool,
 	credential_id:     string,
@@ -158,7 +156,6 @@ get_connections :: proc(db: ^sqlite.Connection) -> ([]Connection, DB_Error) {
 			db_type,
 			host,
 			port,
-			database_name,
 			username,
 			ssl_enabled,
 			credential_id,
@@ -194,27 +191,26 @@ get_connections :: proc(db: ^sqlite.Connection) -> ([]Connection, DB_Error) {
 
 		conn.host = strings.clone_from(sqlite.column_text(stmt, 3))
 		conn.port = int(sqlite.column_int(stmt, 4))
-		conn.db_name = strings.clone_from(sqlite.column_text(stmt, 5))
-		conn.username = strings.clone_from(sqlite.column_text(stmt, 6))
+		conn.username = strings.clone_from(sqlite.column_text(stmt, 5))
 
-		conn.sql_enabled = true if int(sqlite.column_int(stmt, 7)) == 1 else false
-		conn.credential_id = strings.clone_from(sqlite.column_text(stmt, 8))
+		conn.sql_enabled = true if int(sqlite.column_int(stmt, 6)) == 1 else false
+		conn.credential_id = strings.clone_from(sqlite.column_text(stmt, 7))
 
-		if SQLite_Datatypes(sqlite.column_type(stmt, 9)) != .NULL {
-			s := strings.clone_from(sqlite.column_text(stmt, 9))
+		if SQLite_Datatypes(sqlite.column_type(stmt, 8)) != .NULL {
+			s := strings.clone_from(sqlite.column_text(stmt, 8))
 			conn.color = new_clone(s)
 		}
 
-		if SQLite_Datatypes(sqlite.column_type(stmt, 10)) != .NULL {
-			s := strings.clone_from(sqlite.column_text(stmt, 10))
+		if SQLite_Datatypes(sqlite.column_type(stmt, 9)) != .NULL {
+			s := strings.clone_from(sqlite.column_text(stmt, 9))
 			conn.icon = new_clone(s)
 		}
 
-		conn.is_favorite = true if int(sqlite.column_int(stmt, 11)) == 1 else false
-		conn.created_at = strings.clone_from(sqlite.column_text(stmt, 12))
-		conn.updated_at = strings.clone_from(sqlite.column_text(stmt, 13))
-		if SQLite_Datatypes(sqlite.column_type(stmt, 14)) != .NULL {
-			s := strings.clone_from(sqlite.column_text(stmt, 14))
+		conn.is_favorite = true if int(sqlite.column_int(stmt, 10)) == 1 else false
+		conn.created_at = strings.clone_from(sqlite.column_text(stmt, 11))
+		conn.updated_at = strings.clone_from(sqlite.column_text(stmt, 12))
+		if SQLite_Datatypes(sqlite.column_type(stmt, 13)) != .NULL {
+			s := strings.clone_from(sqlite.column_text(stmt, 13))
 			conn.last_connected_at = new_clone(s)
 		}
 
@@ -287,7 +283,6 @@ New_Connection :: struct {
 	db_type:       Database_Type,
 	host:          string,
 	port:          int,
-	database_name: string,
 	username:      string,
 	ssl_enabled:   bool,
 	credential_id: string,
@@ -305,14 +300,13 @@ create_connection :: proc(db: ^sqlite.Connection, new_conn: ^New_Connection) -> 
 			db_type,
 			host,
 			port,
-			database_name,
 			username,
 			ssl_enabled,
 			credential_id,
 			color,
 			icon,
 			is_favorite
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	stmt: ^sqlite.Statement
 	if sqlite.prepare_v2(db, conn_sql, -1, &stmt, nil) != .Ok {
@@ -349,37 +343,33 @@ create_connection :: proc(db: ^sqlite.Connection, new_conn: ^New_Connection) -> 
 
 	sqlite.bind_int(stmt, 5, c.int(new_conn.port))
 
-	db_name_cstr := strings.clone_to_cstring(new_conn.database_name)
-	defer delete(db_name_cstr)
-	sqlite.bind_text(stmt, 6, db_name_cstr, -1, sqlite_destructor)
-
 	username_cstr := strings.clone_to_cstring(new_conn.username)
 	defer delete(username_cstr)
-	sqlite.bind_text(stmt, 7, username_cstr, -1, sqlite_destructor)
+	sqlite.bind_text(stmt, 6, username_cstr, -1, sqlite_destructor)
 
-	sqlite.bind_int(stmt, 8, c.int(0 if !new_conn.ssl_enabled else 1))
+	sqlite.bind_int(stmt, 7, c.int(0 if !new_conn.ssl_enabled else 1))
 
 	credential_id_cstr := strings.clone_to_cstring(new_conn.credential_id)
 	defer delete(credential_id_cstr)
-	sqlite.bind_text(stmt, 9, credential_id_cstr, -1, sqlite_destructor)
+	sqlite.bind_text(stmt, 8, credential_id_cstr, -1, sqlite_destructor)
 
 	if new_conn.color != nil {
 		color_cstr := strings.clone_to_cstring(new_conn.color^)
 		defer delete(color_cstr)
-		sqlite.bind_text(stmt, 10, color_cstr, -1, sqlite_destructor)
+		sqlite.bind_text(stmt, 9, color_cstr, -1, sqlite_destructor)
 	} else {
-		sqlite.bind_null(stmt, 10)
+		sqlite.bind_null(stmt, 9)
 	}
 
 	if new_conn.icon != nil {
 		icon_cstr := strings.clone_to_cstring(new_conn.icon^)
 		defer delete(icon_cstr)
-		sqlite.bind_text(stmt, 11, icon_cstr, -1, sqlite_destructor)
+		sqlite.bind_text(stmt, 10, icon_cstr, -1, sqlite_destructor)
 	} else {
-		sqlite.bind_null(stmt, 11)
+		sqlite.bind_null(stmt, 10)
 	}
 
-	sqlite.bind_int(stmt, 12, c.int(0 if !new_conn.is_favorite else 1))
+	sqlite.bind_int(stmt, 11, c.int(0 if !new_conn.is_favorite else 1))
 	if sqlite.step(stmt) != .Done {
 		return DB_Step_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
@@ -413,7 +403,6 @@ save_db_connection :: proc(db: ^sqlite.Connection, new_conn: ^Db_New_Connection)
 		db_type       = new_conn.conn.db_type,
 		host          = new_conn.conn.host,
 		port          = new_conn.conn.port,
-		database_name = new_conn.conn.database_name,
 		username      = new_conn.conn.username,
 		ssl_enabled   = new_conn.conn.ssl_enabled,
 		credential_id = cred.id,
@@ -436,6 +425,34 @@ save_db_connection :: proc(db: ^sqlite.Connection, new_conn: ^Db_New_Connection)
 	return nil
 }
 
+
+get_credential :: proc(db: ^sqlite.Connection, id: string) -> (Credential, DB_Error) {
+	sql: cstring = `SELECT id, auth_type, secret_key FROM credentials WHERE id = ?`
+
+	stmt: ^sqlite.Statement
+	if sqlite.prepare_v2(db, sql, -1, &stmt, nil) != .Ok {
+		return {}, DB_Prepare_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
+	}
+	defer sqlite.finalize(stmt)
+
+	id_cstr := strings.clone_to_cstring(id)
+	defer delete(id_cstr)
+	sqlite_destructor := sqlite.Destructor {
+		behaviour = .Static,
+	}
+	sqlite.bind_text(stmt, 1, id_cstr, -1, sqlite_destructor)
+
+	if sqlite.step(stmt) != .Row {
+		return {}, DB_Step_Failed{message = "credential not found"}
+	}
+
+	return Credential {
+			id = strings.clone_from(sqlite.column_text(stmt, 0)),
+			auth_type = strings.clone_from(sqlite.column_text(stmt, 1)),
+			secret_key = strings.clone_from(sqlite.column_text(stmt, 2)),
+		},
+		nil
+}
 
 create_id :: proc() -> string {
 	return uuid.to_string(uuid.generate_v7())
