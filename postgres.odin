@@ -20,11 +20,11 @@ make_conn_string :: proc(conn: Db_New_Connection) -> cstring {
 pg_connect :: proc(params: Db_New_Connection) -> (^pq.Conn, DB_Error) {
 	pg_conn := pq.connectdb(make_conn_string(params))
 	if pg_conn == nil {
-		return nil, DB_Open_Failed{message = "connectdb returned nil"}
+		return nil, DB_OpenFailed{message = "connectdb returned nil"}
 	}
 
 	if pq.status(pg_conn) != .Ok {
-		return nil, DB_Open_Failed{message = strings.clone_from_cstring(pq.error_message(pg_conn))}
+		return nil, DB_OpenFailed{message = strings.clone_from_cstring(pq.error_message(pg_conn))}
 	}
 
 	return new_clone(pg_conn), nil
@@ -32,14 +32,14 @@ pg_connect :: proc(params: Db_New_Connection) -> (^pq.Conn, DB_Error) {
 
 pg_get_dbs :: proc(conn: ^pq.Conn) -> ([]string, DB_Error) {
 	if pq.status(conn^) != .Ok {
-		return nil, DB_Open_Failed{message = strings.clone_from_cstring(pq.error_message(conn^))}
+		return nil, DB_OpenFailed{message = strings.clone_from_cstring(pq.error_message(conn^))}
 	}
 
 	res := pq.exec(conn^, "SELECT datname FROM pg_database ORDER BY datname;")
 	defer pq.clear(res)
 
 	if pq.result_status(res) != .Tuples_OK {
-		return nil, DB_Open_Failed{message = strings.clone_from_cstring(pq.error_message(conn^))}
+		return nil, DB_OpenFailed{message = strings.clone_from_cstring(pq.error_message(conn^))}
 	}
 
 	count := pq.n_tuples(res)
@@ -76,12 +76,12 @@ pg_connect_to_db :: proc(conn: ^pq.Conn, dbname: string) -> (^pq.Conn, DB_Error)
 
 	new_conn := pq.connectdb(strings.clone_to_cstring(conn_string, context.temp_allocator))
 	if new_conn == nil {
-		return nil, DB_Open_Failed{message = "connectdb returned nil"}
+		return nil, DB_OpenFailed{message = "connectdb returned nil"}
 	}
 	if pq.status(new_conn) != .Ok {
 		msg := strings.clone_from_cstring(pq.error_message(new_conn))
 		pq.finish(new_conn)
-		return nil, DB_Open_Failed{message = msg}
+		return nil, DB_OpenFailed{message = msg}
 	}
 
 	return new_clone(new_conn), nil
@@ -99,7 +99,7 @@ pg_get_schemas :: proc(conn: ^pq.Conn) -> ([]string, DB_Error) {
 	defer pq.clear(res)
 
 	if pq.result_status(res) != .Tuples_OK {
-		return nil, DB_Open_Failed{message = strings.clone_from_cstring(pq.error_message(conn^))}
+		return nil, DB_OpenFailed{message = strings.clone_from_cstring(pq.error_message(conn^))}
 	}
 
 	count := pq.n_tuples(res)
@@ -126,7 +126,7 @@ pg_get_tables :: proc(conn: ^pq.Conn, schema: string) -> ([]string, DB_Error) {
 	defer pq.clear(res)
 
 	if pq.result_status(res) != .Tuples_OK {
-		return nil, DB_Exec_Failed{message = strings.clone_from_cstring(pq.error_message(conn^))}
+		return nil, DB_ExecFailed{message = strings.clone_from_cstring(pq.error_message(conn^))}
 	}
 
 	count := pq.n_tuples(res)
@@ -179,6 +179,6 @@ pg_run_query :: proc(conn: ^pq.Conn, query: string) -> (QueryResult, DB_Error) {
 		return QueryResult{command_tag = tag}, nil
 
 	case:
-		return {}, DB_Exec_Failed{message = strings.clone_from_cstring(pq.error_message(conn^))}
+		return {}, DB_ExecFailed{message = strings.clone_from_cstring(pq.error_message(conn^))}
 	}
 }

@@ -1,4 +1,6 @@
 package main
+
+import "core:c"
 import pq "vendor/odin-postgresql"
 import sqlite "vendor/odin-sqlite3"
 
@@ -19,5 +21,7 @@ App_State :: struct {
 	app_db:          ^sqlite.Connection,
 	screen:          Screen,
 	conn:            Conn,
-	needs_db_reload: bool,
+	db_needs_reload: bool,
 }
+
+SQLITE_NULL :: c.int(5)

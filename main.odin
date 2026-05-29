@@ -19,7 +19,7 @@ main :: proc() {
 	defer sdl.Quit()
 
 	window := sdl.CreateWindow(
-		"My App",
+		"Skemas",
 		sdl.WINDOWPOS_CENTERED,
 		sdl.WINDOWPOS_CENTERED,
 		1280,
@@ -36,8 +36,24 @@ main :: proc() {
 	im.CreateContext()
 	defer im.DestroyContext()
 
+	w, h: i32
+	sdl.GetWindowSize(window, &w, &h)
+	drawable_w, drawable_h: i32
+	sdl.GetRendererOutputSize(renderer, &drawable_w, &drawable_h)
+
+	dpi_scale := f32(drawable_w) / f32(w)
+
 	io := im.GetIO()
+	im.FontAtlas_AddFontFromFileTTF(
+		io.Fonts,
+		"fonts/Inter-VariableFont_opsz,wght.ttf",
+		16.0 * dpi_scale,
+	)
+
 	io.ConfigFlags += {.DockingEnable}
+	im.StyleColorsLight()
+	style := im.GetStyle()
+	im.Style_ScaleAllSizes(style, dpi_scale)
 
 	imgui_impl_sdl2.InitForSDLRenderer(window, renderer)
 	defer imgui_impl_sdl2.Shutdown()
@@ -53,7 +69,7 @@ main :: proc() {
 	db, db_err := connect()
 	if db_err != nil {
 		log.errorf("%v", db_err)
-		panic(db_err.(DB_Open_Failed).message)
+		panic(db_err.(DB_OpenFailed).message)
 	}
 	defer sqlite.close(db)
 
@@ -65,7 +81,7 @@ main :: proc() {
 	err := create_tables(db)
 	if err != nil {
 		log.errorf("%v", err)
-		panic(err.(DB_Exec_Failed).message)
+		panic(err.(DB_ExecFailed).message)
 	}
 
 	for running {
@@ -96,7 +112,7 @@ main :: proc() {
 
 		im.Render()
 
-		sdl.SetRenderDrawColor(renderer, 20, 20, 30, 255)
+		sdl.SetRenderDrawColor(renderer, 240, 240, 245, 255)
 		sdl.RenderClear(renderer)
 
 		imgui_sql_renderer.RenderDrawData(im.GetDrawData(), renderer)

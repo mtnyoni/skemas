@@ -5,34 +5,11 @@ import "core:encoding/uuid"
 import "core:strings"
 import sqlite "vendor/odin-sqlite3"
 
-DB_Error :: union {
-	DB_Open_Failed,
-	DB_Exec_Failed,
-	DB_Prepare_Failed,
-	DB_Step_Failed,
-}
-
-DB_Open_Failed :: struct {
-	message: string,
-}
-
-DB_Exec_Failed :: struct {
-	message: string,
-}
-
-DB_Prepare_Failed :: struct {
-	message: string,
-}
-
-DB_Step_Failed :: struct {
-	message: string,
-}
-
 
 connect :: proc() -> (^sqlite.Connection, DB_Error) {
 	db: ^sqlite.Connection = nil
 	if rc := sqlite.open("./db.sqlite", &db); rc != .Ok {
-		return nil, DB_Open_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
+		return nil, DB_OpenFailed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 	return db, nil
 }
@@ -52,7 +29,7 @@ create_tables :: proc(db: ^sqlite.Connection) -> DB_Error {
 		);`
 
 	if sqlite.exec(db, credential_table_sql, nil, nil, nil) != .Ok {
-		return DB_Exec_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
+		return DB_ExecFailed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 
 	connection_table_sql: cstring = `
@@ -83,7 +60,7 @@ create_tables :: proc(db: ^sqlite.Connection) -> DB_Error {
 		);`
 
 	if sqlite.exec(db, connection_table_sql, nil, nil, nil) != .Ok {
-		return DB_Exec_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
+		return DB_ExecFailed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 
 	query_history_sql: cstring = `
@@ -98,7 +75,7 @@ create_tables :: proc(db: ^sqlite.Connection) -> DB_Error {
 		);`
 
 	if sqlite.exec(db, query_history_sql, nil, nil, nil) != .Ok {
-		return DB_Exec_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
+		return DB_ExecFailed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 
 	tabs_sql: cstring = `
@@ -112,7 +89,7 @@ create_tables :: proc(db: ^sqlite.Connection) -> DB_Error {
 		);`
 
 	if sqlite.exec(db, tabs_sql, nil, nil, nil) != .Ok {
-		return DB_Exec_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
+		return DB_ExecFailed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 
 	return nil
@@ -169,7 +146,7 @@ get_connections :: proc(db: ^sqlite.Connection) -> ([]Connection, DB_Error) {
 
 	stmt: ^sqlite.Statement
 	if sqlite.prepare_v2(db, sql, -1, &stmt, nil) != .Ok {
-		return nil, DB_Prepare_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
+		return nil, DB_PrepareFailed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 	defer sqlite.finalize(stmt)
 
@@ -245,7 +222,7 @@ create_credential :: proc(
 
 	stmt: ^sqlite.Statement
 	if sqlite.prepare_v2(db, creds_sql, -1, &stmt, nil) != .Ok {
-		return nil, DB_Prepare_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
+		return nil, DB_PrepareFailed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 	defer sqlite.finalize(stmt)
 
@@ -266,7 +243,7 @@ create_credential :: proc(
 	sqlite.bind_text(stmt, 3, secret_key_cstr, -1, sqlite_destructor)
 
 	if sqlite.step(stmt) != .Done {
-		return nil, DB_Step_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
+		return nil, DB_StepFailed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 
 	cred := Credential {
@@ -310,7 +287,7 @@ create_connection :: proc(db: ^sqlite.Connection, new_conn: ^New_Connection) -> 
 
 	stmt: ^sqlite.Statement
 	if sqlite.prepare_v2(db, conn_sql, -1, &stmt, nil) != .Ok {
-		return DB_Prepare_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
+		return DB_PrepareFailed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 	defer sqlite.finalize(stmt)
 
@@ -371,7 +348,7 @@ create_connection :: proc(db: ^sqlite.Connection, new_conn: ^New_Connection) -> 
 
 	sqlite.bind_int(stmt, 11, c.int(0 if !new_conn.is_favorite else 1))
 	if sqlite.step(stmt) != .Done {
-		return DB_Step_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
+		return DB_StepFailed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 
 	return nil
@@ -384,7 +361,7 @@ Db_New_Connection :: struct {
 
 save_db_connection :: proc(db: ^sqlite.Connection, new_conn: ^Db_New_Connection) -> DB_Error {
 	if sqlite.exec(db, "BEGIN", nil, nil, nil) != .Ok {
-		return DB_Step_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
+		return DB_StepFailed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 
 	new_cred := New_Credential {
@@ -419,7 +396,7 @@ save_db_connection :: proc(db: ^sqlite.Connection, new_conn: ^Db_New_Connection)
 
 	if sqlite.exec(db, "COMMIT", nil, nil, nil) != .Ok {
 		sqlite.exec(db, "ROLLBACK", nil, nil, nil)
-		return DB_Step_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
+		return DB_StepFailed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 
 	return nil
@@ -431,7 +408,7 @@ get_credential :: proc(db: ^sqlite.Connection, id: string) -> (Credential, DB_Er
 
 	stmt: ^sqlite.Statement
 	if sqlite.prepare_v2(db, sql, -1, &stmt, nil) != .Ok {
-		return {}, DB_Prepare_Failed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
+		return {}, DB_PrepareFailed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 	defer sqlite.finalize(stmt)
 
@@ -443,7 +420,7 @@ get_credential :: proc(db: ^sqlite.Connection, id: string) -> (Credential, DB_Er
 	sqlite.bind_text(stmt, 1, id_cstr, -1, sqlite_destructor)
 
 	if sqlite.step(stmt) != .Row {
-		return {}, DB_Step_Failed{message = "credential not found"}
+		return {}, DB_StepFailed{message = "credential not found"}
 	}
 
 	return Credential {
