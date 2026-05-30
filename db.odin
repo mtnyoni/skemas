@@ -431,6 +431,52 @@ get_credential :: proc(db: ^sqlite.Connection, id: string) -> (Credential, DB_Er
 		nil
 }
 
+delete_connection :: proc(db: ^sqlite.Connection, conn_id: string, cred_id: string) -> DB_Error {
+	if sqlite.exec(db, "BEGIN", nil, nil, nil) != .Ok {
+		return DB_ExecFailed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
+	}
+
+	destr := sqlite.Destructor{behaviour = .Static}
+
+	del_conn_sql: cstring = `DELETE FROM connections WHERE id = ?`
+	stmt: ^sqlite.Statement
+	if sqlite.prepare_v2(db, del_conn_sql, -1, &stmt, nil) != .Ok {
+		sqlite.exec(db, "ROLLBACK", nil, nil, nil)
+		return DB_PrepareFailed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
+	}
+	conn_cstr := strings.clone_to_cstring(conn_id)
+	defer delete(conn_cstr)
+	sqlite.bind_text(stmt, 1, conn_cstr, -1, destr)
+	if sqlite.step(stmt) != .Done {
+		sqlite.finalize(stmt)
+		sqlite.exec(db, "ROLLBACK", nil, nil, nil)
+		return DB_StepFailed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
+	}
+	sqlite.finalize(stmt)
+
+	del_cred_sql: cstring = `DELETE FROM credentials WHERE id = ?`
+	stmt2: ^sqlite.Statement
+	if sqlite.prepare_v2(db, del_cred_sql, -1, &stmt2, nil) != .Ok {
+		sqlite.exec(db, "ROLLBACK", nil, nil, nil)
+		return DB_PrepareFailed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
+	}
+	cred_cstr := strings.clone_to_cstring(cred_id)
+	defer delete(cred_cstr)
+	sqlite.bind_text(stmt2, 1, cred_cstr, -1, destr)
+	if sqlite.step(stmt2) != .Done {
+		sqlite.finalize(stmt2)
+		sqlite.exec(db, "ROLLBACK", nil, nil, nil)
+		return DB_StepFailed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
+	}
+	sqlite.finalize(stmt2)
+
+	if sqlite.exec(db, "COMMIT", nil, nil, nil) != .Ok {
+		sqlite.exec(db, "ROLLBACK", nil, nil, nil)
+		return DB_ExecFailed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
+	}
+	return nil
+}
+
 create_id :: proc() -> string {
 	return uuid.to_string(uuid.generate_v7())
 }

@@ -19,6 +19,10 @@ UIConnectDB :: proc(state: ^App_State) {
 	@(static) loaded: bool
 	@(static) is_to_save: bool
 	@(static) conn_error: string
+	@(static) pending_delete: Connection
+	@(static) show_delete_dialog: bool
+	@(static) pending_view: Connection
+	@(static) show_view_dialog: bool
 
 	if !loaded {
 		conns, err := get_connections(state.app_db)
@@ -46,7 +50,6 @@ UIConnectDB :: proc(state: ^App_State) {
 
 		if im.Selectable(cname) {
 			cred, cred_err := get_credential(state.app_db, conn.credential_id)
-
 			if cred_err == nil {
 				new_cred := New_Credential {
 					auth_type  = cred.auth_type,
@@ -64,7 +67,6 @@ UIConnectDB :: proc(state: ^App_State) {
 					creds = &new_cred,
 					conn  = &new_conn_data,
 				}
-
 				switch conn.db_type {
 				case .Postgres:
 					pg_conn, conn_err := pg_connect(params)
@@ -91,20 +93,71 @@ UIConnectDB :: proc(state: ^App_State) {
 					}
 				}
 			}
+		}
 
-			if im.BeginPopupContextItem() {
-				if im.MenuItem("Details") {
-					
-				}
-
-				if im.MenuItem("Reset") {
-					// Reset something
-				}
-
-				im.EndPopup()
+		ctx_id := strings.clone_to_cstring(
+			strings.concatenate({"##ctx_", conn.id}, context.temp_allocator),
+			context.temp_allocator,
+		)
+		if im.BeginPopupContextItem(ctx_id) {
+			if im.MenuItem("View") {
+				pending_view = conn
+				show_view_dialog = true
 			}
+
+			if im.MenuItem("Delete") {
+				pending_delete = conn
+				show_delete_dialog = true
+			}
+			im.EndPopup()
 		}
 	}
+
+	// Trigger modals after the loop — OpenPopup must sit in the same window scope as BeginPopupModal
+	if show_view_dialog {
+		im.OpenPopup("View Connection")
+		show_view_dialog = false
+	}
+
+	if show_delete_dialog {
+		im.OpenPopup("Delete Connection?")
+		show_delete_dialog = false
+	}
+
+	// ── View modal ────────────────────────────────────────────────────────────
+	if im.BeginPopupModal("View Connection", nil, {.AlwaysAutoResize}) {
+		name_c := strings.clone_to_cstring(pending_view.name)
+		defer delete(name_c)
+		host_c := strings.clone_to_cstring(pending_view.host)
+		defer delete(host_c)
+		user_c := strings.clone_to_cstring(pending_view.username)
+		defer delete(user_c)
+		im.Text("Name:"); im.SameLine(); im.Text(name_c)
+		im.Text("Type:"); im.SameLine()
+		im.Text("postgres" if pending_view.db_type == .Postgres else "sqlite")
+		if pending_view.db_type == .Postgres {
+			im.Text("Host:"); im.SameLine(); im.Text(host_c)
+			im.Text("Username:"); im.SameLine(); im.Text(user_c)
+		} else {
+			im.Text("Path:"); im.SameLine(); im.Text(host_c)
+		}
+		im.Spacing()
+		im.Separator()
+		im.Spacing()
+		if im.Button("Close", {-1, 0}) {
+			im.CloseCurrentPopup()
+		}
+		im.EndPopup()
+	}
+
+	Delete_Dialog(
+		{
+			loaded = &loaded,
+			pending_delete = &pending_delete,
+			state = state,
+			conn_error = &conn_error,
+		},
+	)
 	im.End()
 
 	center_x := sidebar_w + (display.x - sidebar_w) * 0.5
@@ -259,4 +312,59 @@ UIConnectDB :: proc(state: ^App_State) {
 			}
 		}
 	}
+}
+
+Delete_DialogProps :: struct {
+	loaded:         ^bool,
+	pending_delete: ^Connection,
+	state:          ^App_State,
+	conn_error:     ^string,
+}
+
+Delete_Dialog :: proc(props: Delete_DialogProps) {
+	im.Spacing()
+	im.PushStyleVar(.WindowRounding, 8.0)
+	im.PushStyleVar(.WindowBorderSize, 1.0)
+	im.PushStyleVarImVec2(.WindowPadding, {15, 15})
+	im.PushStyleColorImVec4(.Border, {0.64, 0.68, 0.75, 1.0})
+	if im.BeginPopupModal("Delete Connection?", nil, {.AlwaysAutoResize, .NoTitleBar}) {
+
+		del_name_c := strings.clone_to_cstring(props.pending_delete.name)
+		defer delete(del_name_c)
+		im.PushFont(font_medium)
+		im.Text("Delete connection?")
+		im.PopFont()
+
+		im.TextColored({0.64, 0.68, 0.75, 1.0}, "This cannot be undone.")
+
+		im.Spacing()
+		im.Separator()
+		im.Spacing()
+
+		im.PushStyleVar(.FrameRounding, 4.0)
+		im.PushStyleVar(.GrabRounding, 4.0)
+		im.PushStyleVar(.FrameBorderSize, 1.0)
+		if im.Button("Delete", {120, 0}) {
+			err := delete_connection(
+				props.state.app_db,
+				props.pending_delete.id,
+				props.pending_delete.credential_id,
+			)
+			if err == nil {
+				props.loaded^ = false
+			} else {
+				props.conn_error^ = "Failed to delete connection"
+			}
+			im.CloseCurrentPopup()
+		}
+		im.SameLine()
+		if im.Button("Cancel", {120, 0}) {
+			im.CloseCurrentPopup()
+		}
+
+		im.PopStyleVar(3)
+		im.EndPopup()
+	}
+	im.PopStyleColor(1)
+	im.PopStyleVar(3)
 }

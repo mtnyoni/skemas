@@ -9,6 +9,9 @@ import sqlite "vendor/odin-sqlite3"
 
 import sdl "vendor:sdl2"
 
+font_regular: ^im.Font
+font_medium: ^im.Font
+
 main :: proc() {
 	track: mem.Tracking_Allocator
 	mem.tracking_allocator_init(&track, context.allocator)
@@ -44,9 +47,14 @@ main :: proc() {
 	dpi_scale := f32(drawable_w) / f32(w)
 
 	io := im.GetIO()
-	im.FontAtlas_AddFontFromFileTTF(
+	font_regular = im.FontAtlas_AddFontFromFileTTF(
 		io.Fonts,
-		"fonts/Inter-VariableFont_opsz,wght.ttf",
+		"fonts/Inter_18pt-Regular.ttf",
+		16.0 * dpi_scale,
+	)
+	font_medium = im.FontAtlas_AddFontFromFileTTF(
+		io.Fonts,
+		"fonts/Inter_18pt-Medium.ttf",
 		16.0 * dpi_scale,
 	)
 
