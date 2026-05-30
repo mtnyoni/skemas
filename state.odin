@@ -17,11 +17,17 @@ Conn :: union {
 PQ_Conn :: ^pq.Conn
 SQLite_Conn :: ^sqlite.Connection
 
+ConnectionStatus :: enum {
+	Connected,
+	Disconnected,
+	Connecting,
+}
+
 App_State :: struct {
 	app_db:          ^sqlite.Connection,
 	screen:          Screen,
 	conn:            Conn,
-	connected:       bool,
+	conn_status:     ConnectionStatus,
 	latency:         int, // ms
 	db_needs_reload: bool,
 }

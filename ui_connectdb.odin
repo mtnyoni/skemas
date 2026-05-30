@@ -74,7 +74,7 @@ UIConnectDB :: proc(state: ^App_State) {
 					pg_conn, conn_err := pg_connect(params)
 					if conn_err == nil {
 						state.conn = pg_conn
-						state.connected = true
+						state.conn_status = .Connected
 						state.latency = 10
 						state.db_needs_reload = true
 						conn_error = ""
@@ -88,7 +88,7 @@ UIConnectDB :: proc(state: ^App_State) {
 					sq_conn, conn_err := sqlite_connect(params)
 					if conn_err == nil {
 						state.conn = sq_conn
-						state.connected = true
+						state.conn_status = .Connected
 						state.latency = 10
 						state.db_needs_reload = true
 						conn_error = ""
@@ -196,7 +196,7 @@ Delete_Dialog :: proc(props: Delete_DialogProps) {
 		defer im.EndPopup()
 
 		del_name_c := strings.clone_to_cstring(props.pending_delete.name, context.temp_allocator)
-		im.PushFont(font_medium)
+		im.PushFont(FONT_MEDIUM)
 		im.Text("Delete connection?")
 		im.PopFont()
 
@@ -406,7 +406,7 @@ Connection_Form :: proc(props: Connection_FormProps) {
 
 			if conn_err == nil {
 				props.state.conn = pg_conn
-				props.state.connected = true
+				props.state.conn_status = .Connected
 				props.state.latency = 10
 				props.conn_error^ = ""
 				props.loaded^ = false
@@ -421,7 +421,7 @@ Connection_Form :: proc(props: Connection_FormProps) {
 			sq_conn, conn_err := sqlite_connect(new_conn)
 			if conn_err == nil {
 				props.state.conn = sq_conn
-				props.state.connected = true
+				props.state.conn_status = .Connected
 				props.state.latency = 10
 				props.conn_error^ = ""
 				props.loaded^ = false

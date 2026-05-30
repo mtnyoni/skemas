@@ -9,8 +9,38 @@ import sqlite "vendor/odin-sqlite3"
 
 import sdl "vendor:sdl2"
 
-font_regular: ^im.Font
-font_medium: ^im.Font
+FONT_REGULAR_SM: ^im.Font
+FONT_REGULAR: ^im.Font
+FONT_MEDIUM_SM: ^im.Font
+FONT_MEDIUM: ^im.Font
+
+
+load_fonts :: proc(io: ^im.IO, dpi_scale: f32) {
+
+	FONT_REGULAR = im.FontAtlas_AddFontFromFileTTF(
+		io.Fonts,
+		"fonts/Inter_18pt-Regular.ttf",
+		16.0 * dpi_scale,
+	)
+
+	FONT_REGULAR_SM = im.FontAtlas_AddFontFromFileTTF(
+		io.Fonts,
+		"fonts/Inter_18pt-Regular.ttf",
+		12.0 * dpi_scale,
+	)
+
+	FONT_MEDIUM_SM = im.FontAtlas_AddFontFromFileTTF(
+		io.Fonts,
+		"fonts/Inter_18pt-Medium.ttf",
+		12.0 * dpi_scale,
+	)
+
+	FONT_MEDIUM = im.FontAtlas_AddFontFromFileTTF(
+		io.Fonts,
+		"fonts/Inter_18pt-Medium.ttf",
+		16.0 * dpi_scale,
+	)
+}
 
 main :: proc() {
 	track: mem.Tracking_Allocator
@@ -47,16 +77,7 @@ main :: proc() {
 	dpi_scale := f32(drawable_w) / f32(w)
 
 	io := im.GetIO()
-	font_regular = im.FontAtlas_AddFontFromFileTTF(
-		io.Fonts,
-		"fonts/Inter_18pt-Regular.ttf",
-		16.0 * dpi_scale,
-	)
-	font_medium = im.FontAtlas_AddFontFromFileTTF(
-		io.Fonts,
-		"fonts/Inter_18pt-Medium.ttf",
-		16.0 * dpi_scale,
-	)
+	load_fonts(io, dpi_scale)
 
 	io.ConfigFlags += {.DockingEnable}
 	im.StyleColorsLight()

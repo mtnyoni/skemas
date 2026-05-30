@@ -323,14 +323,18 @@ StatusBar_Props :: struct {
 	query_time_ms:    f32,
 	state:            ^App_State,
 	pg_major_version: i32,
+	conn_status:      ConnectionStatus,
 }
 
 StatusBar :: proc(props: ^StatusBar_Props) {
 	im.SetNextWindowPos({0, props.y_pos}, .Always)
 	im.SetNextWindowSize({props.display_w, WORKSPACE_STATUS_BAR_H}, .Always)
 	im.PushStyleVar(.WindowBorderSize, 0.0)
-	im.PushStyleVarY(.WindowPadding, 0.0)
+	padding_y := (WORKSPACE_STATUS_BAR_H + 3 - im.GetTextLineHeight()) / 2
+	im.PushStyleVarY(.WindowPadding, padding_y)
+
 	defer im.PopStyleVar(2)
+
 	im.Begin(
 		"##statusbar",
 		nil,
@@ -340,63 +344,57 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 	center_y := (WORKSPACE_STATUS_BAR_H - im.GetTextLineHeight()) / 2
 	im.SetCursorPosY(center_y)
 
-	if props.state.connected {
-		im.TextDisabled("Connected")
-	}
+	im.PushFont(FONT_REGULAR_SM)
+	defer im.PopFont()
+	connection_status_text(props.conn_status, props.pg_major_version, props.state)
 
-	im.SameLine()
-	switch conn in props.state.conn {
-	case PQ_Conn:
-		label := strings.clone_to_cstring(
-			fmt.tprintf("Postgres %d", props.pg_major_version),
-			context.temp_allocator,
-		)
-		im.TextDisabled(label)
-	case SQLite_Conn:
-		im.TextDisabled("SQLite")
-	}
-
+	style := im.GetStyle()
 	latency_lbl := strings.clone_to_cstring(
 		fmt.tprintf("%d ms", props.state.latency),
 		context.temp_allocator,
 	)
-
-	style := im.GetStyle()
 	latency_w := im.CalcTextSize(latency_lbl).x
 	im.SameLine(WORKSPACE_SIDEBAR_WIDTH - latency_w - style.WindowPadding.x)
 	im.TextDisabled(latency_lbl)
 
 	draw_list := im.GetWindowDrawList()
-
 	x := WORKSPACE_SIDEBAR_WIDTH
 	p0 := im.Vec2{im.GetWindowPos().x + x, im.GetWindowPos().y}
 	p1 := im.Vec2{im.GetWindowPos().x + x, im.GetWindowPos().y + WORKSPACE_STATUS_BAR_H}
-
 	im.DrawList_AddLine(draw_list, p0, p1, im.GetColorU32(.Separator), 1.0)
 
 	im.PushStyleColor(.Separator, im.GetColorU32(.Separator))
 	defer im.PopStyleColor()
 
 	im.SameLine(WORKSPACE_SIDEBAR_WIDTH + style.WindowPadding.x)
-	im.TextDisabled("1,000 of 1,000,000 rows")
+	number_of_rows_text(103, 1000)
 
 	im.SameLine()
 	im.SeparatorEx({.Vertical})
 
 	im.SameLine()
-	im.TextDisabled("1 Selected")
+	im.PushFont(FONT_MEDIUM_SM)
+	im.Text("1")
+	im.PopFont()
+	im.SameLine(0, 3)
+	im.TextDisabled("Selected")
 
 	if props.query_time_ms > 0 {
 		im.SameLine()
 		im.SeparatorEx({.Vertical})
 
 		s := strings.clone_to_cstring(
-			fmt.tprintf("query: %.0fms", props.query_time_ms),
+			fmt.tprintf("%.0fms", props.query_time_ms),
 			context.temp_allocator,
 		)
 		im.SameLine()
 		im.SetCursorPosY(center_y)
-		im.TextDisabled(s)
+		im.TextDisabled("Query")
+		im.SameLine()
+
+		im.PushFont(FONT_MEDIUM_SM)
+		im.Text(s)
+		im.PopFont()
 	}
 
 
@@ -423,4 +421,67 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 	pages_pos := encoding_type_pos - style.WindowPadding.x * 2 - pages_w
 	im.SameLine(pages_pos)
 	im.TextDisabled(pages_lbl)
+}
+
+connection_status_text :: proc(
+	conn_status: ConnectionStatus,
+	pg_major_version: i32,
+	state: ^App_State,
+) {
+	draw_list := im.GetWindowDrawList()
+	p := im.GetCursorScreenPos()
+	connection_indicator_pos_x := p.x + 6
+	im.DrawList_AddCircleFilled(
+		draw_list,
+		{connection_indicator_pos_x, p.y + 8},
+		3,
+		im.GetColorU32ImVec4({0.13, 0.75, 0.33, 1.0}),
+	)
+
+	im.SameLine()
+	status_labels := [ConnectionStatus]string {
+		.Connected    = "Connected",
+		.Disconnected = "Disconnected",
+		.Connecting   = "Connecting",
+	}
+	status_lbl := status_labels[conn_status]
+	im.TextDisabled(strings.clone_to_cstring(status_lbl), context.temp_allocator)
+	status_label_w :=
+		im.CalcTextSize(strings.clone_to_cstring(status_lbl, context.temp_allocator)).x
+
+	im.SameLine(0, 2)
+	im.DrawList_AddCircleFilled(
+		draw_list,
+		{connection_indicator_pos_x + status_label_w + 12, p.y + 8},
+		2,
+		im.GetColorU32(.Separator),
+	)
+
+	im.Dummy({12, 0})
+	im.SameLine(0, 1)
+	switch conn in state.conn {
+	case PQ_Conn:
+		label := strings.clone_to_cstring(
+			fmt.tprintf("Postgres %d", pg_major_version),
+			context.temp_allocator,
+		)
+		im.Text(label)
+
+	case SQLite_Conn:
+		im.Text("SQLite")
+	}
+}
+
+number_of_rows_text :: proc(count: int, total_rows: int) {
+	im.PushFont(FONT_MEDIUM_SM)
+	im.Text(strings.clone_to_cstring(fmt.tprintf("%d", count), context.temp_allocator))
+	im.PopFont()
+	im.SameLine(0, 3)
+	im.TextDisabled("of")
+	im.SameLine(0, 3)
+	im.PushFont(FONT_MEDIUM_SM)
+	im.Text(strings.clone_to_cstring(fmt.tprintf("%d", total_rows), context.temp_allocator))
+	im.PopFont()
+	im.SameLine(0, 3)
+	im.TextDisabled("rows")
 }
