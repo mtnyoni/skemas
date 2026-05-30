@@ -131,9 +131,7 @@ connection_status_text :: proc(
 	draw_list := im.GetWindowDrawList()
 	pos := im.GetCursorScreenPos()
 
-	color_bg_green := im.Vec4{0.204, 0.863, 0.569, 1.0}
-	color_fg_green := im.Vec4{0.020, 0.616, 0.396, 1.0}
-	draw_status_indicator(3, color_bg_green, color_fg_green, pos, draw_list)
+	draw_status_indicator(3, COLOR_GREEN_ACCENT_LIGHT, COLOR_GREEN_ACCENT, pos, draw_list)
 	im.SameLine(0, 3)
 	status_labels := [ConnectionStatus]string {
 		.Connected    = "Connected",

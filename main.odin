@@ -116,9 +116,16 @@ main :: proc() {
 	// setup theme.
 	colors := style.Colors
 	colors[im.Col.WindowBg] = COLOR_BACKGROUND
+	colors[im.Col.ChildBg] = COLOR_BACKGROUND
+	colors[im.Col.PopupBg] = COLOR_BACKGROUND
 	colors[im.Col.Text] = COLOR_FOREGROUND
 	colors[im.Col.TextDisabled] = COLOR_MUTED_FOREGROUND
 	colors[im.Col.Border] = COLOR_BORDER
+	colors[im.Col.Separator] = COLOR_BORDER
+	colors[im.Col.Header] = COLOR_MUTED_BACKGROUND
+	colors[im.Col.HeaderHovered] = COLOR_MUTED_BACKGROUND
+	colors[im.Col.HeaderActive] = COLOR_MUTED_BACKGROUND
+	colors[im.Col.ScrollbarBg] = COLOR_BACKGROUND
 
 	for running {
 		e: sdl.Event

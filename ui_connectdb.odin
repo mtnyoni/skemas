@@ -44,10 +44,33 @@ UIConnectDB :: proc(state: ^App_State) {
 	// Sidebar
 	im.SetNextWindowPos({0, 0}, .Always)
 	im.SetNextWindowSize({SIDEBAR_WIDTH, displaySize.y}, .Always)
-	im.Begin("Connections", nil, {.NoMove, .NoResize, .NoCollapse, .NoTitleBar})
+	im.PushStyleColorImVec4(.WindowBg, COLOR_BACKGROUND)
+	defer im.PopStyleColor()
+	im.Begin("Connections", nil, {.NoMove, .NoResize, .NoCollapse, .NoTitleBar, .NoScrollbar})
 	for conn in connections {
 		cname := strings.clone_to_cstring(conn.name)
 		defer delete(cname)
+
+		im.PushStyleColorImVec4(.HeaderHovered, {0, 0, 0, 0})
+		im.PushStyleColorImVec4(.HeaderActive, {0, 0, 0, 0})
+		defer im.PopStyleColor(2)
+
+		pos := im.GetCursorScreenPos()
+		size := im.Vec2{im.GetContentRegionAvail().x, im.GetTextLineHeightWithSpacing()}
+		max_pos := im.Vec2{pos.x + size.x, pos.y + size.y}
+		rect_pos := im.Vec2{pos.x - 2, pos.y - 4}
+
+		if im.IsMouseHoveringRect(pos, max_pos) {
+			dl := im.GetWindowDrawList()
+			im.DrawList_AddRectFilled(
+				dl,
+				rect_pos,
+				max_pos,
+				im.GetColorU32ImVec4(COLOR_MUTED_BACKGROUND),
+				4.0,
+				im.DrawFlags_RoundCornersAll,
+			)
+		}
 
 		if im.Selectable(cname) {
 			cred, cred_err := get_credential(state.app_db, conn.credential_id)
@@ -188,8 +211,9 @@ Delete_Dialog :: proc(props: Delete_DialogProps) {
 	im.PushStyleVar(.WindowRounding, 8.0)
 	im.PushStyleVar(.WindowBorderSize, 1.0)
 	im.PushStyleVarImVec2(.WindowPadding, {15, 15})
-	im.PushStyleColorImVec4(.Border, {0.612, 0.659, 0.670, 1.0})
-	defer im.PopStyleColor(1)
+	im.PushStyleColorImVec4(.Border, COLOR_BORDER)
+	im.PushStyleColorImVec4(.PopupBg, COLOR_BACKGROUND)
+	defer im.PopStyleColor(2)
 	defer im.PopStyleVar(3)
 
 	if im.BeginPopupModal("Delete Connection?", nil, {.AlwaysAutoResize, .NoTitleBar, .NoMove}) {
@@ -202,7 +226,7 @@ Delete_Dialog :: proc(props: Delete_DialogProps) {
 
 		msg := fmt.tprintf("'%s' will be permanently removed.", props.pending_delete.name)
 		im.TextColored(
-			{0.35, 0.35, 0.40, 1.0},
+			COLOR_MUTED_FOREGROUND,
 			strings.clone_to_cstring(msg, context.temp_allocator),
 		)
 		im.Dummy({0, 8})
@@ -285,10 +309,10 @@ Connection_Form :: proc(props: Connection_FormProps) {
 	im.PushStyleVar(.FrameRounding, 4.0)
 	im.PushStyleVar(.GrabRounding, 4.0)
 	im.PushStyleVar(.FrameBorderSize, 1.0)
-	im.PushStyleColorImVec4(.FrameBg, {1.00, 1.00, 1.00, 1.00})
-	im.PushStyleColorImVec4(.FrameBgHovered, {0.94, 0.96, 1.00, 1.00})
-	im.PushStyleColorImVec4(.FrameBgActive, {0.88, 0.92, 1.00, 1.00})
-	im.PushStyleColorImVec4(.Border, {0.72, 0.75, 0.82, 1.00})
+	im.PushStyleColorImVec4(.FrameBg, COLOR_BACKGROUND)
+	im.PushStyleColorImVec4(.FrameBgHovered, COLOR_MUTED_BACKGROUND)
+	im.PushStyleColorImVec4(.FrameBgActive, COLOR_MUTED_BACKGROUND)
+	im.PushStyleColorImVec4(.Border, COLOR_BORDER)
 	defer im.PopStyleVar(3)
 	defer im.PopStyleColor(4)
 
