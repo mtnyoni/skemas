@@ -6,6 +6,8 @@ import "core:log"
 import "core:strings"
 import im "vendor/odin-imgui"
 
+SIDEBAR_WIDTH: f32 = 260
+
 UIConnectDB :: proc(state: ^App_State) {
 	@(static) name_buf: [256]u8
 	@(static) host_buf: [256]u8
@@ -22,8 +24,6 @@ UIConnectDB :: proc(state: ^App_State) {
 	@(static) conn_error: string
 	@(static) pending_delete: Connection
 	@(static) show_delete_dialog: bool
-	@(static) pending_view: Connection
-	@(static) show_view_dialog: bool
 
 	if !loaded {
 		conns, err := get_connections(state.app_db)
@@ -38,12 +38,12 @@ UIConnectDB :: proc(state: ^App_State) {
 		.SQLite   = "sqlite",
 	}
 
-	display := im.GetIO().DisplaySize
-	sidebar_w: f32 = 260
+	displaySize := im.GetIO().DisplaySize
+
 
 	// Sidebar
 	im.SetNextWindowPos({0, 0}, .Always)
-	im.SetNextWindowSize({sidebar_w, display.y}, .Always)
+	im.SetNextWindowSize({SIDEBAR_WIDTH, displaySize.y}, .Always)
 	im.Begin("Connections", nil, {.NoMove, .NoResize, .NoCollapse, .NoTitleBar})
 	for conn in connections {
 		cname := strings.clone_to_cstring(conn.name)
@@ -103,8 +103,22 @@ UIConnectDB :: proc(state: ^App_State) {
 		if im.BeginPopupContextItem(ctx_id) {
 			defer im.EndPopup()
 			if im.MenuItem("View") {
-				pending_view = conn
-				show_view_dialog = true
+				fill_buf(name_buf[:], conn.name)
+				db_type = conn.db_type
+
+				switch conn.db_type {
+				case .Postgres:
+					fill_buf(host_buf[:], conn.host)
+					port = c.int(conn.port)
+					fill_buf(username_buf[:], conn.username)
+					ssl_enabled = conn.sql_enabled
+					path_buf = {}
+				case .SQLite:
+					fill_buf(path_buf[:], conn.host)
+					host_buf = {}
+					username_buf = {}
+					port = 0
+				}
 			}
 			if im.MenuItem("Delete") {
 				pending_delete = conn
@@ -113,41 +127,9 @@ UIConnectDB :: proc(state: ^App_State) {
 		}
 	}
 
-	// Trigger modals after the loop — OpenPopup must sit in the same window scope as BeginPopupModal
-	if show_view_dialog {
-		im.OpenPopup("View Connection")
-		show_view_dialog = false
-	}
-
 	if show_delete_dialog {
 		im.OpenPopup("Delete Connection?")
 		show_delete_dialog = false
-	}
-
-	// ── View modal ────────────────────────────────────────────────────────────
-	if im.BeginPopupModal("View Connection", nil, {.AlwaysAutoResize}) {
-		defer im.EndPopup()
-		name_c := strings.clone_to_cstring(pending_view.name)
-		defer delete(name_c)
-		host_c := strings.clone_to_cstring(pending_view.host)
-		defer delete(host_c)
-		user_c := strings.clone_to_cstring(pending_view.username)
-		defer delete(user_c)
-		im.Text("Name:"); im.SameLine(); im.Text(name_c)
-		im.Text("Type:"); im.SameLine()
-		im.Text("postgres" if pending_view.db_type == .Postgres else "sqlite")
-		if pending_view.db_type == .Postgres {
-			im.Text("Host:"); im.SameLine(); im.Text(host_c)
-			im.Text("Username:"); im.SameLine(); im.Text(user_c)
-		} else {
-			im.Text("Path:"); im.SameLine(); im.Text(host_c)
-		}
-		im.Spacing()
-		im.Separator()
-		im.Spacing()
-		if im.Button("Close", {-1, 0}) {
-			im.CloseCurrentPopup()
-		}
 	}
 
 	Delete_Dialog(
@@ -160,158 +142,33 @@ UIConnectDB :: proc(state: ^App_State) {
 	)
 	im.End()
 
-	center_x := sidebar_w + (display.x - sidebar_w) * 0.5
-	im.SetNextWindowPos({center_x, display.y * 0.5}, .Always, {0.5, 0.5})
-	im.SetNextWindowSize({400, 0}, .Always)
+	center_x := SIDEBAR_WIDTH + (displaySize.x - SIDEBAR_WIDTH) * 0.5
+	form_pos := im.Vec2{center_x, displaySize.y * 0.5}
+	Connection_Form(
+		{
+			state = state,
+			loaded = &loaded,
+			conn_error = &conn_error,
+			form_pos = &form_pos,
+			name_buf = &name_buf,
+			host_buf = &host_buf,
+			username_buf = &username_buf,
+			password_buf = &password_buf,
+			path_buf = &path_buf,
+			port = &port,
+			db_type = &db_type,
+			ssl_enabled = &ssl_enabled,
+			is_favorite = &is_favorite,
+			connections = &connections,
+			is_to_save = &is_to_save,
+		},
+	)
+}
 
-	im.PushStyleVar(.WindowRounding, 8.0)
-	im.PushStyleVar(.WindowBorderSize, 1.0)
-	im.PushStyleVarImVec2(.WindowPadding, {20, 20})
-	im.PushStyleColor(.Border, im.GetColorU32(.Border))
-
-	im.Begin("New Connection", nil, {.NoMove, .NoResize, .NoCollapse, .NoTitleBar})
-	defer im.End()
-
-	im.PopStyleColor(1)
-	im.PopStyleVar(3)
-
-	im.PushStyleVar(.FrameRounding, 4.0)
-	im.PushStyleVar(.GrabRounding, 4.0)
-	im.PushStyleVar(.FrameBorderSize, 1.0)
-	im.PushStyleColorImVec4(.FrameBg, {1.00, 1.00, 1.00, 1.00})
-	im.PushStyleColorImVec4(.FrameBgHovered, {0.94, 0.96, 1.00, 1.00})
-	im.PushStyleColorImVec4(.FrameBgActive, {0.88, 0.92, 1.00, 1.00})
-	im.PushStyleColorImVec4(.Border, {0.72, 0.75, 0.82, 1.00})
-	defer im.PopStyleVar(3)
-	defer im.PopStyleColor(4)
-
-	im.Text("Name")
-	im.SetNextItemWidth(-1)
-	im.InputText("##name", cast(cstring)&name_buf[0], len(name_buf))
-
-	im.Spacing()
-	im.Text("Database Type")
-	im.SetNextItemWidth(-1)
-	if im.BeginCombo("##db_type", db_type_labels[db_type]) {
-		for label, t in db_type_labels {
-			if im.Selectable(label, db_type == t) {
-				db_type = t
-			}
-		}
-		im.EndCombo()
-	}
-
-	#partial switch db_type {
-	case .SQLite:
-		im.Spacing()
-		im.Text("Path")
-		browse_lbl: cstring = "Browse..."
-		style := im.GetStyle()
-		browse_w := im.CalcTextSize(browse_lbl).x + style.FramePadding.x * 2 + style.ItemSpacing.x
-		im.SetNextItemWidth(-browse_w)
-		im.InputText("##path", cast(cstring)&path_buf[0], len(path_buf))
-		im.SameLine()
-
-		if im.Button(browse_lbl) {
-			path := pick_file("Select SQLite Database")
-			if path != "" {
-				n := min(len(path), len(path_buf) - 1)
-				copy(path_buf[:n], transmute([]u8)path[:n])
-				path_buf[n] = 0
-			}
-		}
-
-	case .Postgres:
-		im.Spacing()
-		im.Text("Host")
-		im.SetNextItemWidth(-1)
-		im.InputText("##host", cast(cstring)&host_buf[0], len(host_buf))
-
-		im.Spacing()
-		im.Text("Port")
-		im.SetNextItemWidth(-1)
-		im.InputInt("##port", &port, 0, 0)
-
-		im.Spacing()
-		im.Text("Username")
-		im.SetNextItemWidth(-1)
-		im.InputText("##username", cast(cstring)&username_buf[0], len(username_buf))
-
-		im.Spacing()
-		im.Text("Password")
-		im.SetNextItemWidth(-1)
-		im.InputText("##password", cast(cstring)&password_buf[0], len(password_buf), {.Password})
-
-		im.Spacing()
-		im.Checkbox("SSL Enabled", &ssl_enabled)
-	}
-
-	im.Checkbox("Favorite", &is_favorite)
-	im.Checkbox("Save DB", &is_to_save)
-	if conn_error != "" {
-		cerr := strings.clone_to_cstring(conn_error)
-		defer delete(cerr)
-		im.TextColored({1, 0.3, 0.3, 1}, cerr)
-	}
-	im.Spacing()
-	im.Separator()
-	im.Spacing()
-
-	if im.Button("Connect", {-1, 0}) {
-		new_conn := Db_New_Connection {
-			creds = &New_Credential {
-				auth_type = "password",
-				secret_key = strings.clone_from(cast(cstring)&password_buf[0]),
-			},
-			conn  = &New_Connection {
-				name = strings.clone_from(cast(cstring)&name_buf[0]),
-				db_type = db_type,
-				host = strings.clone_from(
-					cast(cstring)(&path_buf[0] if db_type == .SQLite else &host_buf[0]),
-				),
-				port = int(port),
-				username = strings.clone_from(cast(cstring)&username_buf[0]),
-				ssl_enabled = ssl_enabled,
-				is_favorite = is_favorite,
-			},
-		}
-
-		if is_to_save {
-			err := save_db_connection(state.app_db, &new_conn)
-			if err != nil {
-				im.OpenPopup("Error")
-			}
-		}
-
-		#partial switch db_type {
-		case .Postgres:
-			pg_conn, conn_err := pg_connect(new_conn)
-
-			if conn_err == nil {
-				state.conn = pg_conn
-				conn_error = ""
-				loaded = false
-				state.db_needs_reload = true
-				state.screen = .DatabaseViewScreen
-
-			} else {
-				conn_error = conn_err.(DB_OpenFailed).message
-				log.errorf("connect failed: %s", conn_error)
-			}
-		case .SQLite:
-			sq_conn, conn_err := sqlite_connect(new_conn)
-			if conn_err == nil {
-				state.conn = sq_conn
-				conn_error = ""
-				loaded = false
-				state.db_needs_reload = true
-				state.screen = .DatabaseViewScreen
-			} else {
-				conn_error = conn_err.(DB_OpenFailed).message
-				log.errorf("connect failed: %s", conn_error)
-			}
-		}
-	}
+fill_buf :: proc(buf: []u8, s: string) {
+	n := min(len(s), len(buf) - 1)
+	copy(buf[:n], transmute([]u8)s[:n])
+	buf[n] = 0
 }
 
 Delete_DialogProps :: struct {
@@ -384,5 +241,187 @@ Delete_Dialog :: proc(props: Delete_DialogProps) {
 			im.CloseCurrentPopup()
 		}
 		im.PopStyleColor(4)
+	}
+}
+
+Connection_FormProps :: struct {
+	state:        ^App_State,
+	loaded:       ^bool,
+	conn_error:   ^string,
+	form_pos:     ^im.Vec2,
+	name_buf:     ^[256]u8,
+	host_buf:     ^[256]u8,
+	username_buf: ^[256]u8,
+	password_buf: ^[256]u8,
+	path_buf:     ^[256]u8,
+	port:         ^c.int,
+	db_type:      ^Database_Type,
+	ssl_enabled:  ^bool,
+	is_favorite:  ^bool,
+	connections:  ^[]Connection,
+	is_to_save:   ^bool,
+}
+
+Connection_Form :: proc(props: Connection_FormProps) {
+	im.SetNextWindowPos(props.form_pos^, .Always, {0.5, 0.5})
+	im.SetNextWindowSize({400, 0}, .Always)
+
+	im.PushStyleVar(.WindowRounding, 8.0)
+	im.PushStyleVar(.WindowBorderSize, 1.0)
+	im.PushStyleVarImVec2(.WindowPadding, {20, 20})
+	im.PushStyleColor(.Border, im.GetColorU32(.Border))
+
+	im.Begin("New Connection", nil, {.NoMove, .NoResize, .NoCollapse, .NoTitleBar})
+	defer im.End()
+
+	im.PopStyleColor(1)
+	im.PopStyleVar(3)
+
+	im.PushStyleVar(.FrameRounding, 4.0)
+	im.PushStyleVar(.GrabRounding, 4.0)
+	im.PushStyleVar(.FrameBorderSize, 1.0)
+	im.PushStyleColorImVec4(.FrameBg, {1.00, 1.00, 1.00, 1.00})
+	im.PushStyleColorImVec4(.FrameBgHovered, {0.94, 0.96, 1.00, 1.00})
+	im.PushStyleColorImVec4(.FrameBgActive, {0.88, 0.92, 1.00, 1.00})
+	im.PushStyleColorImVec4(.Border, {0.72, 0.75, 0.82, 1.00})
+	defer im.PopStyleVar(3)
+	defer im.PopStyleColor(4)
+
+	im.Text("Name")
+	im.SetNextItemWidth(-1)
+	im.InputText("##name", cast(cstring)&props.name_buf[0], len(props.name_buf))
+
+	db_type_labels := [Database_Type]cstring {
+		.Postgres = "postgres",
+		.SQLite   = "sqlite",
+	}
+
+	im.Spacing()
+	im.Text("Database Type")
+	im.SetNextItemWidth(-1)
+	if im.BeginCombo("##db_type", db_type_labels[props.db_type^]) {
+		for label, t in db_type_labels {
+			if im.Selectable(label, props.db_type^ == t) {
+				props.db_type^ = t
+			}
+		}
+		im.EndCombo()
+	}
+
+	#partial switch props.db_type^ {
+	case .SQLite:
+		im.Spacing()
+		im.Text("Path")
+		browse_lbl: cstring = "Browse..."
+		style := im.GetStyle()
+		browse_w := im.CalcTextSize(browse_lbl).x + style.FramePadding.x * 2 + style.ItemSpacing.x
+		im.SetNextItemWidth(-browse_w)
+		im.InputText("##path", cast(cstring)&props.path_buf[0], len(props.path_buf))
+		im.SameLine()
+
+		if im.Button(browse_lbl) {
+			path := pick_file("Select SQLite Database")
+			if path != "" {
+				n := min(len(path), len(props.path_buf) - 1)
+				copy(props.path_buf[:n], transmute([]u8)path[:n])
+				props.path_buf[n] = 0
+			}
+		}
+
+	case .Postgres:
+		im.Spacing()
+		im.Text("Host")
+		im.SetNextItemWidth(-1)
+		im.InputText("##host", cast(cstring)&props.host_buf[0], len(props.host_buf))
+
+		im.Spacing()
+		im.Text("Port")
+		im.SetNextItemWidth(-1)
+		im.InputInt("##port", props.port, 0, 0)
+
+		im.Spacing()
+		im.Text("Username")
+		im.SetNextItemWidth(-1)
+		im.InputText("##username", cast(cstring)&props.username_buf[0], len(props.username_buf))
+
+		im.Spacing()
+		im.Text("Password")
+		im.SetNextItemWidth(-1)
+		im.InputText(
+			"##password",
+			cast(cstring)&props.password_buf[0],
+			len(props.password_buf),
+			{.Password},
+		)
+
+		im.Spacing()
+		im.Checkbox("SSL Enabled", props.ssl_enabled)
+	}
+
+	im.Checkbox("Favorite", props.is_favorite)
+	im.Checkbox("Save DB", props.is_to_save)
+	if props.conn_error^ != "" {
+		cerr := strings.clone_to_cstring(props.conn_error^)
+		defer delete(cerr)
+		im.TextColored({1, 0.3, 0.3, 1}, cerr)
+	}
+	im.Spacing()
+	im.Separator()
+	im.Spacing()
+
+	if im.Button("Connect", {-1, 0}) {
+		new_conn := Db_New_Connection {
+			creds = &New_Credential {
+				auth_type = "password",
+				secret_key = strings.clone_from(cast(cstring)&props.password_buf[0]),
+			},
+			conn  = &New_Connection {
+				name = strings.clone_from(cast(cstring)&props.name_buf[0]),
+				db_type = props.db_type^,
+				host = strings.clone_from(
+					cast(cstring)(&props.path_buf[0] if props.db_type^ == .SQLite else &props.host_buf[0]),
+				),
+				port = int(props.port^),
+				username = strings.clone_from(cast(cstring)&props.username_buf[0]),
+				ssl_enabled = props.ssl_enabled^,
+				is_favorite = props.is_favorite^,
+			},
+		}
+
+		if props.is_to_save^ {
+			err := save_db_connection(props.state.app_db, &new_conn)
+			if err != nil {
+				im.OpenPopup("Error")
+			}
+		}
+
+		#partial switch props.db_type^ {
+		case .Postgres:
+			pg_conn, conn_err := pg_connect(new_conn)
+
+			if conn_err == nil {
+				props.state.conn = pg_conn
+				props.conn_error^ = ""
+				props.loaded^ = false
+				props.state.db_needs_reload = true
+				props.state.screen = .DatabaseViewScreen
+
+			} else {
+				props.conn_error^ = conn_err.(DB_OpenFailed).message
+				log.errorf("connect failed: %s", props.conn_error^)
+			}
+		case .SQLite:
+			sq_conn, conn_err := sqlite_connect(new_conn)
+			if conn_err == nil {
+				props.state.conn = sq_conn
+				props.conn_error^ = ""
+				props.loaded^ = false
+				props.state.db_needs_reload = true
+				props.state.screen = .DatabaseViewScreen
+			} else {
+				props.conn_error^ = conn_err.(DB_OpenFailed).message
+				log.errorf("connect failed: %s", props.conn_error^)
+			}
+		}
 	}
 }
