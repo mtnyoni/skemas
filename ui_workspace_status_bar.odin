@@ -1,6 +1,7 @@
 package main
 
 import "core:fmt"
+import "core:math"
 import "core:strings"
 import im "vendor/odin-imgui"
 
@@ -38,8 +39,7 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 
 	style := im.GetStyle()
 	latency_str :=
-		fmt.tprintf("%.0f µs", props.state.latency * 1000) if props.state.latency < 1.0 \
-		else fmt.tprintf("%.1f ms", props.state.latency)
+		fmt.tprintf("%.0f µs", props.state.latency * 1000) if props.state.latency < 1.0 else fmt.tprintf("%.1f ms", props.state.latency)
 	latency_lbl := strings.clone_to_cstring(latency_str, context.temp_allocator)
 	latency_w := im.CalcTextSize(latency_lbl).x
 	im.SameLine(WORKSPACE_SIDEBAR_WIDTH - latency_w - style.WindowPadding.x)
@@ -191,6 +191,23 @@ draw_status_indicator :: proc(
 	center := im.Vec2{pos.x + radius, pos.y + im.GetTextLineHeight() / 2}
 
 	im.Dummy(size)
+
+	time := f32(im.GetTime())
+	ping_duration: f32 = 0.7 // seconds.
+
+	ping_factor := math.mod(time, ping_duration) / ping_duration
+	outer_ping_radius := radius + (radius * 0.7 * ping_factor)
+	animated_outer_color := outer_color
+	animated_outer_color.w *= (1.0 - ping_factor)
+
+	im.DrawList_AddCircleFilled(
+		draw_list,
+		center,
+		outer_ping_radius,
+		im.GetColorU32ImVec4(animated_outer_color),
+		0,
+	)
+
 	im.DrawList_AddCircleFilled(draw_list, center, radius, im.GetColorU32ImVec4(outer_color), 0)
 	im.SameLine()
 	im.DrawList_AddCircleFilled(
