@@ -1,6 +1,7 @@
 package main
 
 import "core:c"
+import "core:fmt"
 import "core:log"
 import "core:strings"
 import im "vendor/odin-imgui"
@@ -100,16 +101,15 @@ UIConnectDB :: proc(state: ^App_State) {
 			context.temp_allocator,
 		)
 		if im.BeginPopupContextItem(ctx_id) {
+			defer im.EndPopup()
 			if im.MenuItem("View") {
 				pending_view = conn
 				show_view_dialog = true
 			}
-
 			if im.MenuItem("Delete") {
 				pending_delete = conn
 				show_delete_dialog = true
 			}
-			im.EndPopup()
 		}
 	}
 
@@ -126,6 +126,7 @@ UIConnectDB :: proc(state: ^App_State) {
 
 	// ── View modal ────────────────────────────────────────────────────────────
 	if im.BeginPopupModal("View Connection", nil, {.AlwaysAutoResize}) {
+		defer im.EndPopup()
 		name_c := strings.clone_to_cstring(pending_view.name)
 		defer delete(name_c)
 		host_c := strings.clone_to_cstring(pending_view.host)
@@ -147,7 +148,6 @@ UIConnectDB :: proc(state: ^App_State) {
 		if im.Button("Close", {-1, 0}) {
 			im.CloseCurrentPopup()
 		}
-		im.EndPopup()
 	}
 
 	Delete_Dialog(
@@ -326,25 +326,51 @@ Delete_Dialog :: proc(props: Delete_DialogProps) {
 	im.PushStyleVar(.WindowRounding, 8.0)
 	im.PushStyleVar(.WindowBorderSize, 1.0)
 	im.PushStyleVarImVec2(.WindowPadding, {15, 15})
-	im.PushStyleColorImVec4(.Border, {0.64, 0.68, 0.75, 1.0})
-	if im.BeginPopupModal("Delete Connection?", nil, {.AlwaysAutoResize, .NoTitleBar}) {
+	im.PushStyleColorImVec4(.Border, {0.612, 0.659, 0.670, 1.0})
+	defer im.PopStyleColor(1)
+	defer im.PopStyleVar(3)
 
-		del_name_c := strings.clone_to_cstring(props.pending_delete.name)
-		defer delete(del_name_c)
+	if im.BeginPopupModal("Delete Connection?", nil, {.AlwaysAutoResize, .NoTitleBar, .NoMove}) {
+		defer im.EndPopup()
+
+		del_name_c := strings.clone_to_cstring(props.pending_delete.name, context.temp_allocator)
 		im.PushFont(font_medium)
 		im.Text("Delete connection?")
 		im.PopFont()
 
-		im.TextColored({0.64, 0.68, 0.75, 1.0}, "This cannot be undone.")
+		msg := fmt.tprintf("'%s' will be permanently removed.", props.pending_delete.name)
+		im.TextColored(
+			{0.35, 0.35, 0.40, 1.0},
+			strings.clone_to_cstring(msg, context.temp_allocator),
+		)
+		im.Dummy({0, 8})
 
-		im.Spacing()
-		im.Separator()
-		im.Spacing()
+		btn_w: f32 = 80
+		style := im.GetStyle()
+		im.SetCursorPosX(
+			im.GetWindowWidth() - style.WindowPadding.x - btn_w * 2 - style.ItemSpacing.x,
+		)
 
 		im.PushStyleVar(.FrameRounding, 4.0)
-		im.PushStyleVar(.GrabRounding, 4.0)
-		im.PushStyleVar(.FrameBorderSize, 1.0)
-		if im.Button("Delete", {120, 0}) {
+		im.PushStyleVar(.FrameBorderSize, 0.0)
+		defer im.PopStyleVar(2)
+
+		im.PushStyleColorImVec4(.Button, {0.88, 0.88, 0.90, 1.00})
+		im.PushStyleColorImVec4(.ButtonHovered, {0.82, 0.82, 0.85, 1.00})
+		im.PushStyleColorImVec4(.ButtonActive, {0.76, 0.76, 0.80, 1.00})
+		im.PushStyleColorImVec4(.Text, {0.25, 0.25, 0.28, 1.00})
+		if im.Button("Cancel", {btn_w, 0}) {
+			im.CloseCurrentPopup()
+		}
+		im.PopStyleColor(4)
+
+		im.SameLine()
+
+		im.PushStyleColorImVec4(.Button, {0.98, 0.89, 0.89, 1.00})
+		im.PushStyleColorImVec4(.ButtonHovered, {0.95, 0.82, 0.82, 1.00})
+		im.PushStyleColorImVec4(.ButtonActive, {0.91, 0.74, 0.74, 1.00})
+		im.PushStyleColorImVec4(.Text, {0.72, 0.18, 0.18, 1.00})
+		if im.Button("Delete", {btn_w, 0}) {
 			err := delete_connection(
 				props.state.app_db,
 				props.pending_delete.id,
@@ -357,14 +383,6 @@ Delete_Dialog :: proc(props: Delete_DialogProps) {
 			}
 			im.CloseCurrentPopup()
 		}
-		im.SameLine()
-		if im.Button("Cancel", {120, 0}) {
-			im.CloseCurrentPopup()
-		}
-
-		im.PopStyleVar(3)
-		im.EndPopup()
+		im.PopStyleColor(4)
 	}
-	im.PopStyleColor(1)
-	im.PopStyleVar(3)
 }
