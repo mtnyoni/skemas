@@ -19,8 +19,6 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 	im.SetNextWindowSize({props.display_w, WORKSPACE_STATUS_BAR_H}, .Always)
 	im.PushStyleVar(.WindowBorderSize, 0.0)
 	im.PushStyleVarY(.WindowPadding, 0.0)
-	// im.PushStyleColorImVec4(.WindowBg, im.Vec4{0.15, 0.35, 0.70, 1.0})
-
 	defer im.PopStyleVar(2)
 
 	im.Begin(
@@ -89,10 +87,15 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 		im.PopFont()
 	}
 
-	// Right-aligned section, rendered left-to-right: [<1-14>] | [UTF8] | [Read-only Off]
-	readonly_lbl: cstring = "Read-only Off"
-	encoding_type_lbl: cstring = "UTF8"
-	pages_lbl: cstring = "<1-14>"
+	readonly_lbl := strings.clone_to_cstring(
+		"Read-only On" if props.state.read_only else "Read-only Off",
+		context.temp_allocator,
+	)
+	encoding_type_lbl := strings.clone_to_cstring(
+		props.state.encoding if props.state.encoding != "" else "UTF8",
+		context.temp_allocator,
+	)
+	pages_lbl: cstring = "< 1-14 >"
 
 	readonly_w := im.CalcTextSize(readonly_lbl).x
 	encoding_type_w := im.CalcTextSize(encoding_type_lbl).x
@@ -154,16 +157,59 @@ connection_status_text :: proc(
 
 	im.Dummy({3, 0})
 	im.SameLine(0, 3)
+
+	db_lbl: cstring
 	switch conn in state.conn {
 	case PQ_Conn:
-		label := strings.clone_to_cstring(
+		db_lbl = strings.clone_to_cstring(
 			fmt.tprintf("Postgres %d", pg_major_version),
 			context.temp_allocator,
 		)
-		im.Text(label)
-
 	case SQLite_Conn:
-		im.Text("SQLite")
+		db_lbl = strings.clone_to_cstring("SQLite", context.temp_allocator)
+	}
+
+	lbl_size := im.CalcTextSize(db_lbl)
+
+	im.Text(db_lbl)
+
+	if im.IsItemHovered() {
+		im.SetMouseCursor(.Hand)
+
+		if im.IsItemClicked(.Left) {
+			im.OpenPopup("DbContextMenu")
+		}
+	}
+
+	display_size := im.GetIO().DisplaySize
+	target_y := display_size.y - WORKSPACE_STATUS_BAR_H - 2
+	current_x := im.GetItemRectMin().x
+	im.SetNextWindowPos({current_x, target_y}, .Appearing, {0.0, 1.0})
+
+	im.PushStyleVarImVec2(.WindowPadding, {10, 8})
+	im.PushStyleVar(.PopupRounding, 4)
+	defer im.PopStyleVar(2)
+
+	if im.BeginPopup("DbContextMenu") {
+		defer im.EndPopup()
+
+		im.PushStyleColorImVec4(.HeaderHovered, COLOR_MUTED_BACKGROUND)
+		defer im.PopStyleColor()
+
+		im.PushStyleVar(.FrameRounding, 4)
+		defer im.PopStyleVar(1)
+
+		if im.MenuItem("Refresh Database") {
+			state.db_needs_reload = true
+		}
+
+		if im.MenuItem("Disconnect") {
+			state.conn = nil
+			state.conn_status = .Disconnected
+			state.db_needs_reload = true
+			state.screen = .ConnectionScreen
+			im.CloseCurrentPopup()
+		}
 	}
 }
 

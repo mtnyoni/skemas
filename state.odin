@@ -30,6 +30,8 @@ App_State :: struct {
 	conn_status:     ConnectionStatus,
 	latency:         f32, // ms (fractional)
 	db_needs_reload: bool,
+	encoding:        string,
+	read_only:       bool,
 }
 
 SQLITE_NULL :: c.int(5)

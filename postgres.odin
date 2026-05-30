@@ -150,6 +150,24 @@ pg_server_version_major :: proc(conn: ^pq.Conn) -> i32 {
 	return pq.server_version(conn^) / 10000
 }
 
+pg_client_encoding :: proc(conn: ^pq.Conn) -> string {
+	res := pq.exec(conn^, "SHOW client_encoding")
+	defer pq.clear(res)
+	if pq.result_status(res) == .Tuples_OK && pq.n_tuples(res) > 0 {
+		return strings.clone_from_cstring(cstring(pq.get_value(res, 0, 0)))
+	}
+	return "UTF8"
+}
+
+pg_is_read_only :: proc(conn: ^pq.Conn) -> bool {
+	res := pq.exec(conn^, "SHOW default_transaction_read_only")
+	defer pq.clear(res)
+	if pq.result_status(res) == .Tuples_OK && pq.n_tuples(res) > 0 {
+		return strings.clone_from_cstring(cstring(pq.get_value(res, 0, 0))) == "on"
+	}
+	return false
+}
+
 
 pg_current_db :: proc(conn: ^pq.Conn) -> string {
 	return strings.clone_from_cstring(pq.db(conn^))

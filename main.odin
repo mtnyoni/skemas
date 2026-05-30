@@ -7,6 +7,7 @@ import "core:time"
 import im "vendor/odin-imgui"
 import "vendor/odin-imgui/imgui_impl_sdl2"
 import imgui_sql_renderer "vendor/odin-imgui/imgui_impl_sdlrenderer2"
+import pq "vendor/odin-postgresql"
 import sqlite "vendor/odin-sqlite3"
 
 import sdl "vendor:sdl2"
@@ -134,6 +135,7 @@ main :: proc() {
 	health_checker: Conn_Health_Checker
 	health_checker.status = .Connected
 	health_thread: ^thread.Thread
+	prev_pg_conn: PQ_Conn
 
 	for running {
 		e: sdl.Event
@@ -147,8 +149,8 @@ main :: proc() {
 			}
 		}
 
-
 		if pg_conn, ok := state.conn.(PQ_Conn); ok {
+			prev_pg_conn = pg_conn
 			state.conn_status = pg_conn_status(&health_checker)
 			state.latency = pg_conn_latency(&health_checker)
 
@@ -157,10 +159,21 @@ main :: proc() {
 				if health_thread != nil {
 					thread.join(health_thread)
 					thread.destroy(health_thread)
+					health_thread = nil
 				}
-
 				health_thread = pg_spawn_health_check(&health_checker, pg_conn)
 			}
+		} else if prev_pg_conn != nil {
+			// Connection was just dropped — clean up.
+			if health_thread != nil {
+				thread.join(health_thread)
+				thread.destroy(health_thread)
+				health_thread = nil
+			}
+			health_checker = {}
+			health_checker.status = .Disconnected
+			pq.finish(prev_pg_conn^)
+			prev_pg_conn = nil
 		}
 
 		imgui_sql_renderer.NewFrame()

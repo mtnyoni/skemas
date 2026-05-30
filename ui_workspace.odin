@@ -45,6 +45,8 @@ UIWorkspace :: proc(state: ^App_State) {
 			dbs_loaded = true
 			state.db_needs_reload = false
 			pg_major_version = pg_server_version_major(pg_conn)
+			state.encoding = pg_client_encoding(pg_conn)
+			state.read_only = pg_is_read_only(pg_conn)
 			current_db := pg_current_db(pg_conn)
 			selected_db =
 				current_db if current_db != "" else (loaded_dbs[0] if len(loaded_dbs) > 0 else "")
