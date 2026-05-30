@@ -18,10 +18,9 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 	im.SetNextWindowSize({props.display_w, WORKSPACE_STATUS_BAR_H}, .Always)
 	im.PushStyleVar(.WindowBorderSize, 0.0)
 	im.PushStyleVarY(.WindowPadding, 0.0)
-	im.PushStyleColorImVec4(.WindowBg, im.Vec4{0.15, 0.35, 0.70, 1.0})
+	// im.PushStyleColorImVec4(.WindowBg, im.Vec4{0.15, 0.35, 0.70, 1.0})
 
 	defer im.PopStyleVar(2)
-	defer im.PopStyleColor()
 
 	im.Begin(
 		"##statusbar",
@@ -135,9 +134,7 @@ connection_status_text :: proc(
 	color_bg_green := im.Vec4{0.204, 0.863, 0.569, 1.0}
 	color_fg_green := im.Vec4{0.020, 0.616, 0.396, 1.0}
 	draw_status_indicator(3, color_bg_green, color_fg_green, pos, draw_list)
-
-	im.Dummy({3, 0})
-	im.SameLine()
+	im.SameLine(0, 3)
 	status_labels := [ConnectionStatus]string {
 		.Connected    = "Connected",
 		.Disconnected = "Disconnected",
@@ -149,16 +146,16 @@ connection_status_text :: proc(
 		im.CalcTextSize(strings.clone_to_cstring(status_lbl, context.temp_allocator)).x
 
 	im.SameLine(0, 2)
-
+	dot_pos := im.GetCursorScreenPos()
 	im.DrawList_AddCircleFilled(
 		draw_list,
-		{pos.x + status_label_w + 12, pos.y + im.GetTextLineHeight() / 2},
+		{dot_pos.x + 1.5, dot_pos.y + im.GetTextLineHeight() / 2},
 		1.5,
 		im.GetColorU32(.Separator),
 	)
 
-	im.Dummy({12, 0})
-	im.SameLine(0, 1)
+	im.Dummy({3, 0})
+	im.SameLine(0, 3)
 	switch conn in state.conn {
 	case PQ_Conn:
 		label := strings.clone_to_cstring(

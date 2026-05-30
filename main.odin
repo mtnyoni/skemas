@@ -115,6 +115,8 @@ main :: proc() {
 
 	// setup theme.
 	colors := style.Colors
+	colors[im.Col.WindowBg] = COLOR_BACKGROUND
+	colors[im.Col.Text] = COLOR_FOREGROUND
 	colors[im.Col.TextDisabled] = COLOR_MUTED_FOREGROUND
 	colors[im.Col.Border] = COLOR_BORDER
 
@@ -146,7 +148,13 @@ main :: proc() {
 
 		im.Render()
 
-		sdl.SetRenderDrawColor(renderer, 240, 240, 245, 255)
+		sdl.SetRenderDrawColor(
+			renderer,
+			u8(COLOR_BACKGROUND.x * 255),
+			u8(COLOR_BACKGROUND.y * 255),
+			u8(COLOR_BACKGROUND.z * 255),
+			255,
+		)
 		sdl.RenderClear(renderer)
 
 		imgui_sql_renderer.RenderDrawData(im.GetDrawData(), renderer)
