@@ -438,6 +438,7 @@ connection_status_text :: proc(
 		im.GetColorU32ImVec4({0.13, 0.75, 0.33, 1.0}),
 	)
 
+	im.Dummy({3, 0})
 	im.SameLine()
 	status_labels := [ConnectionStatus]string {
 		.Connected    = "Connected",
@@ -453,7 +454,7 @@ connection_status_text :: proc(
 	im.DrawList_AddCircleFilled(
 		draw_list,
 		{connection_indicator_pos_x + status_label_w + 12, p.y + 8},
-		2,
+		1.5,
 		im.GetColorU32(.Separator),
 	)
 
