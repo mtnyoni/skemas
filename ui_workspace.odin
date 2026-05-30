@@ -3,7 +3,11 @@ package main
 import "core:c"
 import "core:fmt"
 import "core:strings"
+import "core:time"
 import im "vendor/odin-imgui"
+
+WORKSPACE_SIDEBAR_WIDTH: f32 = 260
+WORKSPACE_STATUS_BAR_H :: f32(24)
 
 UIWorkspace :: proc(state: ^App_State) {
 	// Postgres-only
@@ -22,9 +26,11 @@ UIWorkspace :: proc(state: ^App_State) {
 	@(static) selected_table: string
 	@(static) query_result: QueryResult
 	@(static) prev_selected_table: string
+	@(static) query_time_ms: f64
+	@(static) pg_major_version: i32
 
 	display := im.GetIO().DisplaySize
-	sidebar_w: f32 = 260
+
 
 	switch conn in state.conn {
 
@@ -34,12 +40,14 @@ UIWorkspace :: proc(state: ^App_State) {
 
 		if !dbs_loaded || state.db_needs_reload {
 			dbs, err := pg_get_dbs(pg_conn)
-			if err != nil { panic(err.(DB_OpenFailed).message) }
+			if err != nil {panic(err.(DB_OpenFailed).message)}
 			loaded_dbs = dbs
 			dbs_loaded = true
 			state.db_needs_reload = false
+			pg_major_version = pg_server_version_major(pg_conn)
 			current_db := pg_current_db(pg_conn)
-			selected_db = current_db if current_db != "" else (loaded_dbs[0] if len(loaded_dbs) > 0 else "")
+			selected_db =
+				current_db if current_db != "" else (loaded_dbs[0] if len(loaded_dbs) > 0 else "")
 			prev_selected_db = selected_db
 			schemas_loaded = false
 			selected_schema = ""
@@ -98,23 +106,32 @@ UIWorkspace :: proc(state: ^App_State) {
 
 		if selected_table != prev_selected_table {
 			query_result = {}
+			query_time_ms = 0
 			if selected_table != "" && selected_schema != "" {
-				q := fmt.tprintf(`SELECT * FROM "%s"."%s" LIMIT 1000`, selected_schema, selected_table)
+				q := fmt.tprintf(
+					`SELECT * FROM "%s"."%s" LIMIT 1000`,
+					selected_schema,
+					selected_table,
+				)
+				t := time.tick_now()
 				result, err := pg_run_query(pg_conn, q)
-				if err == nil { query_result = result }
+				query_time_ms = time.duration_milliseconds(time.tick_since(t))
+				if err == nil {query_result = result}
 			}
 			prev_selected_table = selected_table
 		}
 
 		// Sidebar
 		im.SetNextWindowPos({0, 0}, .Always)
-		im.SetNextWindowSize({sidebar_w, display.y}, .Always)
+		im.SetNextWindowSize({SIDEBAR_WIDTH, display.y - WORKSPACE_STATUS_BAR_H}, .Always)
 		im.Begin("DBs", nil, {.NoMove, .NoResize, .NoCollapse, .NoScrollbar, .NoTitleBar})
 		defer im.End()
 
 		im.Text("Database")
 		im.SetNextItemWidth(-1)
-		db_label := strings.clone_to_cstring(selected_db if selected_db != "" else "Select database...")
+		db_label := strings.clone_to_cstring(
+			selected_db if selected_db != "" else "Select database...",
+		)
 		defer delete(db_label)
 		if im.BeginCombo("##db_select", db_label) {
 			for db in loaded_dbs {
@@ -134,7 +151,9 @@ UIWorkspace :: proc(state: ^App_State) {
 		im.Spacing()
 		im.Text("Schema")
 		im.SetNextItemWidth(-1)
-		schema_label := strings.clone_to_cstring(selected_schema if selected_schema != "" else "Select schema...")
+		schema_label := strings.clone_to_cstring(
+			selected_schema if selected_schema != "" else "Select schema...",
+		)
 		defer delete(schema_label)
 		if im.BeginCombo("##schema_select", schema_label) {
 			for s in loaded_schemas {
@@ -174,17 +193,20 @@ UIWorkspace :: proc(state: ^App_State) {
 
 		if selected_table != prev_selected_table {
 			query_result = {}
+			query_time_ms = 0
 			if selected_table != "" {
 				q := fmt.tprintf(`SELECT * FROM "%s" LIMIT 1000`, selected_table)
+				t := time.tick_now()
 				result, err := sqlite_run_query(sq_conn, q)
-				if err == nil { query_result = result }
+				query_time_ms = time.duration_milliseconds(time.tick_since(t))
+				if err == nil {query_result = result}
 			}
 			prev_selected_table = selected_table
 		}
 
 		// Sidebar
 		im.SetNextWindowPos({0, 0}, .Always)
-		im.SetNextWindowSize({sidebar_w, display.y}, .Always)
+		im.SetNextWindowSize({SIDEBAR_WIDTH, display.y - WORKSPACE_STATUS_BAR_H}, .Always)
 		im.Begin("Tables", nil, {.NoMove, .NoResize, .NoCollapse, .NoScrollbar, .NoTitleBar})
 		defer im.End()
 
@@ -201,9 +223,13 @@ UIWorkspace :: proc(state: ^App_State) {
 	}
 
 	// ── Shared content area ───────────────────────────────────────────────────
-	im.SetNextWindowPos({sidebar_w, 0}, .Always)
-	im.SetNextWindowSize({display.x - sidebar_w, display.y}, .Always)
-	im.Begin("##content", nil, {.NoMove, .NoResize, .NoCollapse, .NoTitleBar, .NoScrollbar, .NoScrollWithMouse})
+	im.SetNextWindowPos({SIDEBAR_WIDTH, 0}, .Always)
+	im.SetNextWindowSize({display.x - SIDEBAR_WIDTH, display.y - WORKSPACE_STATUS_BAR_H}, .Always)
+	im.Begin(
+		"##content",
+		nil,
+		{.NoMove, .NoResize, .NoCollapse, .NoTitleBar, .NoScrollbar, .NoScrollWithMouse},
+	)
 	defer im.End()
 
 	// Breadcrumb + toolbar
@@ -238,7 +264,8 @@ UIWorkspace :: proc(state: ^App_State) {
 	row_lbl: cstring = "+ Row"
 	refresh_w := im.CalcTextSize(refresh_lbl).x + style.FramePadding.x * 2
 	row_w := im.CalcTextSize(row_lbl).x + style.FramePadding.x * 2
-	right_x := im.GetWindowWidth() - style.WindowPadding.x - row_w - refresh_w - style.ItemSpacing.x
+	right_x :=
+		im.GetWindowWidth() - style.WindowPadding.x - row_w - refresh_w - style.ItemSpacing.x
 	im.SameLine(right_x)
 	if im.Button(refresh_lbl) {
 		prev_selected_table = ""
@@ -278,4 +305,122 @@ UIWorkspace :: proc(state: ^App_State) {
 			im.EndTable()
 		}
 	}
+
+	// ── Status bar ────────────────────────────────────────────────────────────
+	sb_props := StatusBar_Props {
+		y_pos            = display.y - WORKSPACE_STATUS_BAR_H,
+		display_w        = display.x,
+		query_time_ms    = f32(query_time_ms),
+		state            = state,
+		pg_major_version = pg_major_version,
+	}
+	StatusBar(&sb_props)
+}
+
+StatusBar_Props :: struct {
+	y_pos:            f32,
+	display_w:        f32,
+	query_time_ms:    f32,
+	state:            ^App_State,
+	pg_major_version: i32,
+}
+
+StatusBar :: proc(props: ^StatusBar_Props) {
+	im.SetNextWindowPos({0, props.y_pos}, .Always)
+	im.SetNextWindowSize({props.display_w, WORKSPACE_STATUS_BAR_H}, .Always)
+	im.PushStyleVar(.WindowBorderSize, 0.0)
+	im.PushStyleVarY(.WindowPadding, 0.0)
+	defer im.PopStyleVar(2)
+	im.Begin(
+		"##statusbar",
+		nil,
+		{.NoMove, .NoResize, .NoCollapse, .NoTitleBar, .NoScrollbar, .NoScrollWithMouse},
+	)
+	defer im.End()
+	center_y := (WORKSPACE_STATUS_BAR_H - im.GetTextLineHeight()) / 2
+	im.SetCursorPosY(center_y)
+
+	if props.state.connected {
+		im.TextDisabled("Connected")
+	}
+
+	im.SameLine()
+	switch conn in props.state.conn {
+	case PQ_Conn:
+		label := strings.clone_to_cstring(
+			fmt.tprintf("Postgres %d", props.pg_major_version),
+			context.temp_allocator,
+		)
+		im.TextDisabled(label)
+	case SQLite_Conn:
+		im.TextDisabled("SQLite")
+	}
+
+	latency_lbl := strings.clone_to_cstring(
+		fmt.tprintf("%d ms", props.state.latency),
+		context.temp_allocator,
+	)
+
+	style := im.GetStyle()
+	latency_w := im.CalcTextSize(latency_lbl).x
+	im.SameLine(WORKSPACE_SIDEBAR_WIDTH - latency_w - style.WindowPadding.x)
+	im.TextDisabled(latency_lbl)
+
+	draw_list := im.GetWindowDrawList()
+
+	x := WORKSPACE_SIDEBAR_WIDTH
+	p0 := im.Vec2{im.GetWindowPos().x + x, im.GetWindowPos().y}
+	p1 := im.Vec2{im.GetWindowPos().x + x, im.GetWindowPos().y + WORKSPACE_STATUS_BAR_H}
+
+	im.DrawList_AddLine(draw_list, p0, p1, im.GetColorU32(.Separator), 1.0)
+
+	im.PushStyleColor(.Separator, im.GetColorU32(.Separator))
+	defer im.PopStyleColor()
+
+	im.SameLine(WORKSPACE_SIDEBAR_WIDTH + style.WindowPadding.x)
+	im.TextDisabled("1,000 of 1,000,000 rows")
+
+	im.SameLine()
+	im.SeparatorEx({.Vertical})
+
+	im.SameLine()
+	im.TextDisabled("1 Selected")
+
+	if props.query_time_ms > 0 {
+		im.SameLine()
+		im.SeparatorEx({.Vertical})
+
+		s := strings.clone_to_cstring(
+			fmt.tprintf("query: %.0fms", props.query_time_ms),
+			context.temp_allocator,
+		)
+		im.SameLine()
+		im.SetCursorPosY(center_y)
+		im.TextDisabled(s)
+	}
+
+
+	readonly_lbl: cstring = "Read-only Off"
+	readonly_w := im.CalcTextSize(readonly_lbl).x
+	readonly_pos := props.display_w - readonly_w - style.WindowPadding.x
+	im.SameLine(readonly_pos)
+	im.TextDisabled(readonly_lbl)
+
+	im.SameLine(readonly_pos - style.WindowPadding.x)
+	im.SeparatorEx({.Vertical})
+
+	encoding_type_lbl: cstring = "UTF8"
+	encoding_type_w := im.CalcTextSize(encoding_type_lbl).x
+	encoding_type_pos := readonly_pos - style.WindowPadding.x * 2 - encoding_type_w
+	im.SameLine(encoding_type_pos)
+	im.TextDisabled(encoding_type_lbl)
+
+	im.SameLine(encoding_type_pos - style.WindowPadding.x)
+	im.SeparatorEx({.Vertical})
+
+	pages_lbl: cstring = "<1-14>"
+	pages_w := im.CalcTextSize(pages_lbl).x
+	pages_pos := encoding_type_pos - style.WindowPadding.x * 2 - pages_w
+	im.SameLine(pages_pos)
+	im.TextDisabled(pages_lbl)
 }

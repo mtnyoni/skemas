@@ -21,6 +21,8 @@ App_State :: struct {
 	app_db:          ^sqlite.Connection,
 	screen:          Screen,
 	conn:            Conn,
+	connected:       bool,
+	latency:         int, // ms
 	db_needs_reload: bool,
 }
 

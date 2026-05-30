@@ -68,11 +68,14 @@ UIConnectDB :: proc(state: ^App_State) {
 					creds = &new_cred,
 					conn  = &new_conn_data,
 				}
+
 				switch conn.db_type {
 				case .Postgres:
 					pg_conn, conn_err := pg_connect(params)
 					if conn_err == nil {
 						state.conn = pg_conn
+						state.connected = true
+						state.latency = 10
 						state.db_needs_reload = true
 						conn_error = ""
 						state.screen = .DatabaseViewScreen
@@ -85,6 +88,8 @@ UIConnectDB :: proc(state: ^App_State) {
 					sq_conn, conn_err := sqlite_connect(params)
 					if conn_err == nil {
 						state.conn = sq_conn
+						state.connected = true
+						state.latency = 10
 						state.db_needs_reload = true
 						conn_error = ""
 						state.screen = .DatabaseViewScreen
@@ -401,6 +406,8 @@ Connection_Form :: proc(props: Connection_FormProps) {
 
 			if conn_err == nil {
 				props.state.conn = pg_conn
+				props.state.connected = true
+				props.state.latency = 10
 				props.conn_error^ = ""
 				props.loaded^ = false
 				props.state.db_needs_reload = true
@@ -414,6 +421,8 @@ Connection_Form :: proc(props: Connection_FormProps) {
 			sq_conn, conn_err := sqlite_connect(new_conn)
 			if conn_err == nil {
 				props.state.conn = sq_conn
+				props.state.connected = true
+				props.state.latency = 10
 				props.conn_error^ = ""
 				props.loaded^ = false
 				props.state.db_needs_reload = true

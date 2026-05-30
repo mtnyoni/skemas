@@ -92,6 +92,11 @@ main :: proc() {
 		panic(err.(DB_ExecFailed).message)
 	}
 
+	// setup theme.
+	colors := style.Colors
+	colors[im.Col.TextDisabled] = COLOR_MUTED_FOREGROUND
+	colors[im.Col.Border] = COLOR_BORDER
+
 	for running {
 		e: sdl.Event
 

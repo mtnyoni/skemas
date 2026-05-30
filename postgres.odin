@@ -51,6 +51,10 @@ pg_get_dbs :: proc(conn: ^pq.Conn) -> ([]string, DB_Error) {
 	return dbs, nil
 }
 
+pg_server_version_major :: proc(conn: ^pq.Conn) -> i32 {
+	return pq.server_version(conn^) / 10000
+}
+
 pg_current_db :: proc(conn: ^pq.Conn) -> string {
 	return strings.clone_from_cstring(pq.db(conn^))
 }
