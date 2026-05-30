@@ -98,7 +98,7 @@ UIConnectDB :: proc(state: ^App_State) {
 					if conn_err == nil {
 						state.conn = pg_conn
 						state.conn_status = .Connected
-						state.latency = 10
+						state.latency = 0
 						state.db_needs_reload = true
 						conn_error = ""
 						state.screen = .DatabaseViewScreen
@@ -112,7 +112,7 @@ UIConnectDB :: proc(state: ^App_State) {
 					if conn_err == nil {
 						state.conn = sq_conn
 						state.conn_status = .Connected
-						state.latency = 10
+						state.latency = 0
 						state.db_needs_reload = true
 						conn_error = ""
 						state.screen = .DatabaseViewScreen
@@ -431,7 +431,7 @@ Connection_Form :: proc(props: Connection_FormProps) {
 			if conn_err == nil {
 				props.state.conn = pg_conn
 				props.state.conn_status = .Connected
-				props.state.latency = 10
+				props.state.latency = 0
 				props.conn_error^ = ""
 				props.loaded^ = false
 				props.state.db_needs_reload = true
@@ -446,7 +446,7 @@ Connection_Form :: proc(props: Connection_FormProps) {
 			if conn_err == nil {
 				props.state.conn = sq_conn
 				props.state.conn_status = .Connected
-				props.state.latency = 10
+				props.state.latency = 0
 				props.conn_error^ = ""
 				props.loaded^ = false
 				props.state.db_needs_reload = true

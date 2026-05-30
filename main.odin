@@ -147,8 +147,10 @@ main :: proc() {
 			}
 		}
 
+
 		if pg_conn, ok := state.conn.(PQ_Conn); ok {
 			state.conn_status = pg_conn_status(&health_checker)
+			state.latency = pg_conn_latency(&health_checker)
 
 			if time.tick_since(last_conn_check) >= conn_check_interval {
 				last_conn_check = time.tick_now()

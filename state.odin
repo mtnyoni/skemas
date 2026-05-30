@@ -28,7 +28,7 @@ App_State :: struct {
 	screen:          Screen,
 	conn:            Conn,
 	conn_status:     ConnectionStatus,
-	latency:         int, // ms
+	latency:         f32, // ms (fractional)
 	db_needs_reload: bool,
 }
 

@@ -37,10 +37,10 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 	connection_status_text(props.conn_status, props.pg_major_version, props.state)
 
 	style := im.GetStyle()
-	latency_lbl := strings.clone_to_cstring(
-		fmt.tprintf("%d ms", props.state.latency),
-		context.temp_allocator,
-	)
+	latency_str :=
+		fmt.tprintf("%.0f µs", props.state.latency * 1000) if props.state.latency < 1.0 \
+		else fmt.tprintf("%.1f ms", props.state.latency)
+	latency_lbl := strings.clone_to_cstring(latency_str, context.temp_allocator)
 	latency_w := im.CalcTextSize(latency_lbl).x
 	im.SameLine(WORKSPACE_SIDEBAR_WIDTH - latency_w - style.WindowPadding.x)
 	im.SetCursorPosY(center_y)

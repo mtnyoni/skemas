@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:strings"
 import "core:sync"
 import "core:thread"
+import "core:time"
 import pq "vendor/odin-postgresql"
 
 make_conn_string :: proc(conn: Db_New_Connection) -> cstring {
@@ -54,9 +55,10 @@ pg_get_dbs :: proc(conn: ^pq.Conn) -> ([]string, DB_Error) {
 }
 
 Conn_Health_Checker :: struct {
-	mu:     sync.Mutex,
-	status: ConnectionStatus,
-	active: bool,
+	mu:         sync.Mutex,
+	status:     ConnectionStatus,
+	latency_ms: f32,
+	active:     bool,
 }
 
 _Health_Check_Args :: struct {
@@ -79,12 +81,18 @@ _health_check_worker :: proc(t: ^thread.Thread) {
 	defer if tmp != nil {pq.finish(tmp)}
 
 	status: ConnectionStatus = .Disconnected
+	latency_ms: f32
 	if tmp != nil && pq.status(tmp) == .Ok {
 		status = .Connected
+		t := time.tick_now()
+		res := pq.exec(tmp, "SELECT 1")
+		latency_ms = f32(time.duration_microseconds(time.tick_since(t))) / 1000.0
+		pq.clear(res)
 	}
 
 	sync.lock(&checker.mu)
 	checker.status = status
+	checker.latency_ms = latency_ms
 	checker.active = false
 	sync.unlock(&checker.mu)
 }
@@ -130,6 +138,12 @@ pg_conn_status :: proc(checker: ^Conn_Health_Checker) -> ConnectionStatus {
 	sync.lock(&checker.mu)
 	defer sync.unlock(&checker.mu)
 	return checker.status
+}
+
+pg_conn_latency :: proc(checker: ^Conn_Health_Checker) -> f32 {
+	sync.lock(&checker.mu)
+	defer sync.unlock(&checker.mu)
+	return checker.latency_ms
 }
 
 pg_server_version_major :: proc(conn: ^pq.Conn) -> i32 {
