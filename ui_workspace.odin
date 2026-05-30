@@ -31,198 +31,27 @@ UIWorkspace :: proc(state: ^App_State) {
 
 	display := im.GetIO().DisplaySize
 
-
-	switch conn in state.conn {
-
-	// ── PostgreSQL ────────────────────────────────────────────────────────────
-	case PQ_Conn:
-		pg_conn := conn
-
-		if !dbs_loaded || state.db_needs_reload {
-			dbs, err := pg_get_dbs(pg_conn)
-			if err != nil {panic(err.(DB_OpenFailed).message)}
-			loaded_dbs = dbs
-			dbs_loaded = true
-			state.db_needs_reload = false
-			pg_major_version = pg_server_version_major(pg_conn)
-			state.encoding = pg_client_encoding(pg_conn)
-			state.read_only = pg_is_read_only(pg_conn)
-			current_db := pg_current_db(pg_conn)
-			selected_db =
-				current_db if current_db != "" else (loaded_dbs[0] if len(loaded_dbs) > 0 else "")
-			prev_selected_db = selected_db
-			schemas_loaded = false
-			selected_schema = ""
-			prev_selected_schema = ""
-			loaded_tables = {}
-			tables_loaded = false
-			selected_table = ""
-			query_result = {}
-			prev_selected_table = ""
-		}
-
-		if selected_db != prev_selected_db {
-			new_conn, err := pg_connect_to_db(pg_conn, selected_db)
-			if err == nil {
-				state.conn = new_conn
-				pg_conn = new_conn
-				schemas_loaded = false
-			} else {
-				loaded_schemas = {}
-				schemas_loaded = true
-			}
-			selected_schema = ""
-			prev_selected_schema = ""
-			loaded_tables = {}
-			tables_loaded = false
-			selected_table = ""
-			query_result = {}
-			prev_selected_table = ""
-			prev_selected_db = selected_db
-		}
-
-		if !schemas_loaded {
-			schemas, err := pg_get_schemas(pg_conn)
-			if err == nil {
-				loaded_schemas = schemas
-				schemas_loaded = true
-				selected_schema = loaded_schemas[0] if len(loaded_schemas) > 0 else ""
-			}
-		}
-
-		if selected_schema != prev_selected_schema {
-			loaded_tables = {}
-			tables_loaded = false
-			selected_table = ""
-			query_result = {}
-			prev_selected_table = ""
-			if selected_schema != "" {
-				tables, err := pg_get_tables(pg_conn, selected_schema)
-				if err == nil {
-					loaded_tables = tables
-					tables_loaded = true
-				}
-			}
-			prev_selected_schema = selected_schema
-		}
-
-		if selected_table != prev_selected_table {
-			query_result = {}
-			query_time_ms = 0
-			if selected_table != "" && selected_schema != "" {
-				q := fmt.tprintf(
-					`SELECT * FROM "%s"."%s" LIMIT 1000`,
-					selected_schema,
-					selected_table,
-				)
-				t := time.tick_now()
-				result, err := pg_run_query(pg_conn, q)
-				query_time_ms = time.duration_milliseconds(time.tick_since(t))
-				if err == nil {query_result = result}
-			}
-			prev_selected_table = selected_table
-		}
-
-		// Sidebar
-		im.SetNextWindowPos({0, 0}, .Always)
-		im.SetNextWindowSize({SIDEBAR_WIDTH, display.y - WORKSPACE_STATUS_BAR_H}, .Always)
-		im.Begin("DBs", nil, {.NoMove, .NoResize, .NoCollapse, .NoScrollbar, .NoTitleBar})
-		defer im.End()
-
-		im.Text("Database")
-		im.SetNextItemWidth(-1)
-		db_label := strings.clone_to_cstring(
-			selected_db if selected_db != "" else "Select database...",
-		)
-		defer delete(db_label)
-		if im.BeginCombo("##db_select", db_label) {
-			for db in loaded_dbs {
-				cname := strings.clone_to_cstring(db)
-				defer delete(cname)
-				if im.Selectable(cname, selected_db == db) {
-					selected_db = db
-					loaded_schemas = nil
-					schemas_loaded = false
-					tables_loaded = false
-					loaded_tables = nil
-				}
-			}
-			im.EndCombo()
-		}
-
-		im.Spacing()
-		im.Text("Schema")
-		im.SetNextItemWidth(-1)
-		schema_label := strings.clone_to_cstring(
-			selected_schema if selected_schema != "" else "Select schema...",
-		)
-		defer delete(schema_label)
-		if im.BeginCombo("##schema_select", schema_label) {
-			for s in loaded_schemas {
-				cname := strings.clone_to_cstring(s)
-				defer delete(cname)
-				if im.Selectable(cname, selected_schema == s) {
-					selected_schema = s
-				}
-			}
-			im.EndCombo()
-		}
-
-		im.Spacing()
-		im.Text("Tables")
-		im.BeginChild("##tables_list", {-1, -1}, {.Borders})
-		for tbl in loaded_tables {
-			cname := strings.clone_to_cstring(tbl)
-			defer delete(cname)
-			if im.Selectable(cname, selected_table == tbl) {
-				selected_table = tbl
-			}
-		}
-		im.EndChild()
-
-	// ── SQLite ────────────────────────────────────────────────────────────────
-	case SQLite_Conn:
-		sq_conn := conn
-
-		if !tables_loaded || state.db_needs_reload {
-			state.db_needs_reload = false
-			loaded_tables = sqlite_get_tables(sq_conn)
-			tables_loaded = true
-			selected_table = ""
-			query_result = {}
-			prev_selected_table = ""
-		}
-
-		if selected_table != prev_selected_table {
-			query_result = {}
-			query_time_ms = 0
-			if selected_table != "" {
-				q := fmt.tprintf(`SELECT * FROM "%s" LIMIT 1000`, selected_table)
-				t := time.tick_now()
-				result, err := sqlite_run_query(sq_conn, q)
-				query_time_ms = time.duration_milliseconds(time.tick_since(t))
-				if err == nil {query_result = result}
-			}
-			prev_selected_table = selected_table
-		}
-
-		// Sidebar
-		im.SetNextWindowPos({0, 0}, .Always)
-		im.SetNextWindowSize({SIDEBAR_WIDTH, display.y - WORKSPACE_STATUS_BAR_H}, .Always)
-		im.Begin("Tables", nil, {.NoMove, .NoResize, .NoCollapse, .NoScrollbar, .NoTitleBar})
-		defer im.End()
-
-		im.Text("Tables")
-		im.BeginChild("##tables_list", {-1, -1}, {.Borders})
-		for tbl in loaded_tables {
-			cname := strings.clone_to_cstring(tbl)
-			defer delete(cname)
-			if im.Selectable(cname, selected_table == tbl) {
-				selected_table = tbl
-			}
-		}
-		im.EndChild()
-	}
+	Workspace_Sidebar(
+		{
+			state = state,
+			display_h = display.y,
+			loaded_dbs = &loaded_dbs,
+			dbs_loaded = &dbs_loaded,
+			selected_db = &selected_db,
+			prev_selected_db = &prev_selected_db,
+			loaded_schemas = &loaded_schemas,
+			schemas_loaded = &schemas_loaded,
+			selected_schema = &selected_schema,
+			prev_selected_schema = &prev_selected_schema,
+			loaded_tables = &loaded_tables,
+			tables_loaded = &tables_loaded,
+			selected_table = &selected_table,
+			query_result = &query_result,
+			prev_selected_table = &prev_selected_table,
+			query_time_ms = &query_time_ms,
+			pg_major_version = &pg_major_version,
+		},
+	)
 
 	// ── Shared content area ───────────────────────────────────────────────────
 	im.SetNextWindowPos({SIDEBAR_WIDTH, 0}, .Always)
@@ -316,4 +145,218 @@ UIWorkspace :: proc(state: ^App_State) {
 		pg_major_version = pg_major_version,
 	}
 	StatusBar(&sb_props)
+}
+
+Workspace_SidebarProps :: struct {
+	state:                ^App_State,
+	display_h:            f32,
+	loaded_dbs:           ^[]string,
+	dbs_loaded:           ^bool,
+	selected_db:          ^string,
+	prev_selected_db:     ^string,
+	loaded_schemas:       ^[]string,
+	schemas_loaded:       ^bool,
+	selected_schema:      ^string,
+	prev_selected_schema: ^string,
+	loaded_tables:        ^[]string,
+	tables_loaded:        ^bool,
+	selected_table:       ^string,
+	query_result:         ^QueryResult,
+	prev_selected_table:  ^string,
+	query_time_ms:        ^f64,
+	pg_major_version:     ^i32,
+}
+
+Workspace_Sidebar :: proc(props: Workspace_SidebarProps) {
+	switch conn in props.state.conn {
+	case PQ_Conn:
+		pg_conn := conn
+
+		if !props.dbs_loaded^ || props.state.db_needs_reload {
+			dbs, err := pg_get_dbs(pg_conn)
+			if err != nil {panic(err.(DB_OpenFailed).message)}
+			props.loaded_dbs^ = dbs
+			props.dbs_loaded^ = true
+			props.state.db_needs_reload = false
+			props.pg_major_version^ = pg_server_version_major(pg_conn)
+			props.state.encoding = pg_client_encoding(pg_conn)
+			props.state.read_only = pg_is_read_only(pg_conn)
+			current_db := pg_current_db(pg_conn)
+			props.selected_db^ =
+				current_db if current_db != "" else (props.loaded_dbs^[0] if len(props.loaded_dbs^) > 0 else "")
+			props.prev_selected_db^ = props.selected_db^
+			props.schemas_loaded^ = false
+			props.selected_schema^ = ""
+			props.prev_selected_schema^ = ""
+			props.loaded_tables^ = {}
+			props.tables_loaded^ = false
+			props.selected_table^ = ""
+			props.query_result^ = {}
+			props.prev_selected_table^ = ""
+		}
+
+		if props.selected_db^ != props.prev_selected_db^ {
+			new_conn, err := pg_connect_to_db(pg_conn, props.selected_db^)
+			if err == nil {
+				props.state.conn = new_conn
+				pg_conn = new_conn
+				props.schemas_loaded^ = false
+			} else {
+				props.loaded_schemas^ = {}
+				props.schemas_loaded^ = true
+			}
+			props.selected_schema^ = ""
+			props.prev_selected_schema^ = ""
+			props.loaded_tables^ = {}
+			props.tables_loaded^ = false
+			props.selected_table^ = ""
+			props.query_result^ = {}
+			props.prev_selected_table^ = ""
+			props.prev_selected_db^ = props.selected_db^
+		}
+
+		if !props.schemas_loaded^ {
+			schemas, err := pg_get_schemas(pg_conn)
+			if err == nil {
+				props.loaded_schemas^ = schemas
+				props.schemas_loaded^ = true
+				props.selected_schema^ =
+					props.loaded_schemas^[0] if len(props.loaded_schemas^) > 0 else ""
+			}
+		}
+
+		if props.selected_schema^ != props.prev_selected_schema^ {
+			props.loaded_tables^ = {}
+			props.tables_loaded^ = false
+			props.selected_table^ = ""
+			props.query_result^ = {}
+			props.prev_selected_table^ = ""
+			if props.selected_schema^ != "" {
+				tables, err := pg_get_tables(pg_conn, props.selected_schema^)
+				if err == nil {
+					props.loaded_tables^ = tables
+					props.tables_loaded^ = true
+				}
+			}
+			props.prev_selected_schema^ = props.selected_schema^
+		}
+
+		if props.selected_table^ != props.prev_selected_table^ {
+			props.query_result^ = {}
+			props.query_time_ms^ = 0
+			if props.selected_table^ != "" && props.selected_schema^ != "" {
+				q := fmt.tprintf(
+					`SELECT * FROM "%s"."%s" LIMIT 1000`,
+					props.selected_schema^,
+					props.selected_table^,
+				)
+				t := time.tick_now()
+				result, err := pg_run_query(pg_conn, q)
+				props.query_time_ms^ = time.duration_milliseconds(time.tick_since(t))
+				if err == nil {props.query_result^ = result}
+			}
+			props.prev_selected_table^ = props.selected_table^
+		}
+
+		im.SetNextWindowPos({0, 0}, .Always)
+		im.SetNextWindowSize({SIDEBAR_WIDTH, props.display_h - WORKSPACE_STATUS_BAR_H}, .Always)
+
+		im.PushStyleVar(.WindowBorderSize, 0)
+		defer im.PopStyleVar()
+
+		im.Begin("DBs", nil, {.NoMove, .NoResize, .NoCollapse, .NoScrollbar, .NoTitleBar})
+		defer im.End()
+
+		im.Text("Database")
+		im.SetNextItemWidth(-1)
+		db_label := strings.clone_to_cstring(
+			props.selected_db^ if props.selected_db^ != "" else "Select database...",
+		)
+		defer delete(db_label)
+		if im.BeginCombo("##db_select", db_label) {
+			for db in props.loaded_dbs^ {
+				cname := strings.clone_to_cstring(db)
+				defer delete(cname)
+				if im.Selectable(cname, props.selected_db^ == db) {
+					props.selected_db^ = db
+					props.loaded_schemas^ = nil
+					props.schemas_loaded^ = false
+					props.tables_loaded^ = false
+					props.loaded_tables^ = nil
+				}
+			}
+			im.EndCombo()
+		}
+
+		im.Spacing()
+		im.Text("Schema")
+		im.SetNextItemWidth(-1)
+		schema_label := strings.clone_to_cstring(
+			props.selected_schema^ if props.selected_schema^ != "" else "Select schema...",
+		)
+		defer delete(schema_label)
+		if im.BeginCombo("##schema_select", schema_label) {
+			for s in props.loaded_schemas^ {
+				cname := strings.clone_to_cstring(s)
+				defer delete(cname)
+				if im.Selectable(cname, props.selected_schema^ == s) {
+					props.selected_schema^ = s
+				}
+			}
+			im.EndCombo()
+		}
+
+		im.Spacing()
+		im.Text("Tables")
+		im.BeginChild("##tables_list", {-1, -1}, {.Borders})
+		for tbl in props.loaded_tables^ {
+			cname := strings.clone_to_cstring(tbl)
+			defer delete(cname)
+			if im.Selectable(cname, props.selected_table^ == tbl) {
+				props.selected_table^ = tbl
+			}
+		}
+		im.EndChild()
+
+	case SQLite_Conn:
+		sq_conn := conn
+
+		if !props.tables_loaded^ || props.state.db_needs_reload {
+			props.state.db_needs_reload = false
+			props.loaded_tables^ = sqlite_get_tables(sq_conn)
+			props.tables_loaded^ = true
+			props.selected_table^ = ""
+			props.query_result^ = {}
+			props.prev_selected_table^ = ""
+		}
+
+		if props.selected_table^ != props.prev_selected_table^ {
+			props.query_result^ = {}
+			props.query_time_ms^ = 0
+			if props.selected_table^ != "" {
+				q := fmt.tprintf(`SELECT * FROM "%s" LIMIT 1000`, props.selected_table^)
+				t := time.tick_now()
+				result, err := sqlite_run_query(sq_conn, q)
+				props.query_time_ms^ = time.duration_milliseconds(time.tick_since(t))
+				if err == nil {props.query_result^ = result}
+			}
+			props.prev_selected_table^ = props.selected_table^
+		}
+
+		im.SetNextWindowPos({0, 0}, .Always)
+		im.SetNextWindowSize({SIDEBAR_WIDTH, props.display_h - WORKSPACE_STATUS_BAR_H}, .Always)
+		im.Begin("Tables", nil, {.NoMove, .NoResize, .NoCollapse, .NoScrollbar, .NoTitleBar})
+		defer im.End()
+
+		im.Text("Tables")
+		im.BeginChild("##tables_list", {-1, -1}, {.Borders})
+		for tbl in props.loaded_tables^ {
+			cname := strings.clone_to_cstring(tbl)
+			defer delete(cname)
+			if im.Selectable(cname, props.selected_table^ == tbl) {
+				props.selected_table^ = tbl
+			}
+		}
+		im.EndChild()
+	}
 }

@@ -31,6 +31,16 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 	im.PushFont(FONT_REGULAR_SM)
 	defer im.PopFont()
 
+	draw_list := im.GetWindowDrawList()
+	win_pos := im.GetWindowPos()
+	im.DrawList_AddLine(
+		draw_list,
+		{win_pos.x, win_pos.y},
+		{win_pos.x + props.display_w, win_pos.y},
+		im.GetColorU32(.Separator),
+		1.0,
+	)
+
 	center_y := (WORKSPACE_STATUS_BAR_H - im.GetTextLineHeight()) / 2
 	im.SetCursorPosY(center_y)
 	connection_status_text(props.conn_status, props.pg_major_version, props.state)
@@ -44,22 +54,27 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 	im.SetCursorPosY(center_y)
 	im.TextDisabled(latency_lbl)
 
-	draw_list := im.GetWindowDrawList()
-	x := WORKSPACE_SIDEBAR_WIDTH
-	p0 := im.Vec2{im.GetWindowPos().x + x, im.GetWindowPos().y}
-	p1 := im.Vec2{im.GetWindowPos().x + x, im.GetWindowPos().y + WORKSPACE_STATUS_BAR_H}
-	im.DrawList_AddLine(draw_list, p0, p1, im.GetColorU32(.Separator), 1.0)
+	sep_color := im.GetColorU32(.Separator)
+	vertical_separator :: proc(dl: ^im.DrawList, wp: im.Vec2, col: u32) {
+		x := im.GetCursorScreenPos().x
+		im.Dummy({1, 0})
+		im.DrawList_AddLine(dl, {x, wp.y + 7}, {x, wp.y + WORKSPACE_STATUS_BAR_H - 7}, col, 1.0)
+	}
 
-	im.PushStyleColor(.Separator, im.GetColorU32(.Separator))
-	defer im.PopStyleColor()
+	im.DrawList_AddLine(
+		draw_list,
+		{win_pos.x + WORKSPACE_SIDEBAR_WIDTH, win_pos.y},
+		{win_pos.x + WORKSPACE_SIDEBAR_WIDTH, win_pos.y + WORKSPACE_STATUS_BAR_H},
+		sep_color,
+		1.0,
+	)
 
 	im.SameLine(WORKSPACE_SIDEBAR_WIDTH + style.WindowPadding.x)
 	im.SetCursorPosY(center_y)
 	number_of_rows_text(103, 1000)
 
 	im.SameLine()
-	im.SetCursorPosY(center_y)
-	im.SeparatorEx({.Vertical})
+	vertical_separator(draw_list, win_pos, sep_color)
 
 	im.SameLine()
 	im.SetCursorPosY(center_y)
@@ -71,8 +86,7 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 
 	if props.query_time_ms > 0 {
 		im.SameLine()
-		im.SetCursorPosY(center_y)
-		im.SeparatorEx({.Vertical})
+		vertical_separator(draw_list, win_pos, sep_color)
 
 		s := strings.clone_to_cstring(
 			fmt.tprintf("%.0fms", props.query_time_ms),
@@ -110,16 +124,14 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 	im.TextDisabled(pages_lbl)
 
 	im.SameLine()
-	im.SetCursorPosY(center_y)
-	im.SeparatorEx({.Vertical})
+	vertical_separator(draw_list, win_pos, sep_color)
 
 	im.SameLine()
 	im.SetCursorPosY(center_y)
 	im.TextDisabled(encoding_type_lbl)
 
 	im.SameLine()
-	im.SetCursorPosY(center_y)
-	im.SeparatorEx({.Vertical})
+	vertical_separator(draw_list, win_pos, sep_color)
 
 	im.SameLine()
 	im.SetCursorPosY(center_y)

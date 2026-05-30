@@ -29,13 +29,13 @@ load_fonts :: proc(io: ^im.IO, dpi_scale: f32) {
 	FONT_REGULAR_SM = im.FontAtlas_AddFontFromFileTTF(
 		io.Fonts,
 		"fonts/Inter_18pt-Regular.ttf",
-		12.0 * dpi_scale,
+		13.0 * dpi_scale,
 	)
 
 	FONT_MEDIUM_SM = im.FontAtlas_AddFontFromFileTTF(
 		io.Fonts,
 		"fonts/Inter_18pt-Medium.ttf",
-		12.0 * dpi_scale,
+		13.0 * dpi_scale,
 	)
 
 	FONT_MEDIUM = im.FontAtlas_AddFontFromFileTTF(
@@ -117,18 +117,17 @@ main :: proc() {
 	}
 
 	// setup theme.
-	colors := style.Colors
-	colors[im.Col.WindowBg] = COLOR_BACKGROUND
-	colors[im.Col.ChildBg] = COLOR_BACKGROUND
-	colors[im.Col.PopupBg] = COLOR_BACKGROUND
-	colors[im.Col.Text] = COLOR_FOREGROUND
-	colors[im.Col.TextDisabled] = COLOR_MUTED_FOREGROUND
-	colors[im.Col.Border] = COLOR_BORDER
-	colors[im.Col.Separator] = COLOR_BORDER
-	colors[im.Col.Header] = COLOR_MUTED_BACKGROUND
-	colors[im.Col.HeaderHovered] = COLOR_MUTED_BACKGROUND
-	colors[im.Col.HeaderActive] = COLOR_MUTED_BACKGROUND
-	colors[im.Col.ScrollbarBg] = COLOR_BACKGROUND
+	style.Colors[im.Col.WindowBg] = COLOR_BACKGROUND
+	style.Colors[im.Col.ChildBg] = COLOR_BACKGROUND
+	style.Colors[im.Col.PopupBg] = COLOR_BACKGROUND
+	style.Colors[im.Col.Text] = COLOR_FOREGROUND
+	style.Colors[im.Col.TextDisabled] = COLOR_MUTED_FOREGROUND
+	style.Colors[im.Col.Border] = COLOR_BORDER
+	style.Colors[im.Col.Separator] = COLOR_BORDER
+	style.Colors[im.Col.Header] = COLOR_MUTED_BACKGROUND
+	style.Colors[im.Col.HeaderHovered] = COLOR_MUTED_BACKGROUND
+	style.Colors[im.Col.HeaderActive] = COLOR_MUTED_BACKGROUND
+	style.Colors[im.Col.ScrollbarBg] = COLOR_BACKGROUND
 
 	last_conn_check := time.tick_now()
 	conn_check_interval :: 5 * time.Second
