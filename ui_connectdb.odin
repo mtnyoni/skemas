@@ -43,6 +43,7 @@ UIConnectDB :: proc(state: ^App_State) {
 	for conn in connections {
 		cname := strings.clone_to_cstring(conn.name)
 		defer delete(cname)
+
 		if im.Selectable(cname) {
 			cred, cred_err := get_credential(state.app_db, conn.credential_id)
 
@@ -76,6 +77,7 @@ UIConnectDB :: proc(state: ^App_State) {
 						conn_error = conn_err.(DB_OpenFailed).message
 						log.errorf("connect failed: %s", conn_error)
 					}
+
 				case .SQLite:
 					sq_conn, conn_err := sqlite_connect(params)
 					if conn_err == nil {
@@ -88,6 +90,18 @@ UIConnectDB :: proc(state: ^App_State) {
 						log.errorf("connect failed: %s", conn_error)
 					}
 				}
+			}
+
+			if im.BeginPopupContextItem() {
+				if im.MenuItem("Details") {
+					
+				}
+
+				if im.MenuItem("Reset") {
+					// Reset something
+				}
+
+				im.EndPopup()
 			}
 		}
 	}
@@ -144,6 +158,7 @@ UIConnectDB :: proc(state: ^App_State) {
 		im.SetNextItemWidth(-browse_w)
 		im.InputText("##path", cast(cstring)&path_buf[0], len(path_buf))
 		im.SameLine()
+
 		if im.Button(browse_lbl) {
 			path := pick_file("Select SQLite Database")
 			if path != "" {
