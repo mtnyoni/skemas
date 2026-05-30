@@ -2,6 +2,8 @@ package main
 
 import "core:fmt"
 import "core:strings"
+import "core:sync"
+import "core:thread"
 import pq "vendor/odin-postgresql"
 
 make_conn_string :: proc(conn: Db_New_Connection) -> cstring {
@@ -51,9 +53,89 @@ pg_get_dbs :: proc(conn: ^pq.Conn) -> ([]string, DB_Error) {
 	return dbs, nil
 }
 
+Conn_Health_Checker :: struct {
+	mu:     sync.Mutex,
+	status: ConnectionStatus,
+	active: bool,
+}
+
+_Health_Check_Args :: struct {
+	checker:     ^Conn_Health_Checker,
+	conn_string: string,
+}
+
+_health_check_worker :: proc(t: ^thread.Thread) {
+	args := cast(^_Health_Check_Args)t.data
+	checker := args.checker
+	conn_string := args.conn_string
+	free(args)
+
+	buf: [1024]byte
+	n := copy(buf[:len(buf) - 1], conn_string)
+	buf[n] = 0
+	delete(conn_string)
+
+	tmp := pq.connectdb(cstring(&buf[0]))
+	defer if tmp != nil {pq.finish(tmp)}
+
+	status: ConnectionStatus = .Disconnected
+	if tmp != nil && pq.status(tmp) == .Ok {
+		status = .Connected
+	}
+
+	sync.lock(&checker.mu)
+	checker.status = status
+	checker.active = false
+	sync.unlock(&checker.mu)
+}
+
+pg_spawn_health_check :: proc(checker: ^Conn_Health_Checker, pg_conn: PQ_Conn) -> ^thread.Thread {
+	sync.lock(&checker.mu)
+	if checker.active {
+		sync.unlock(&checker.mu)
+		return nil
+	}
+	checker.active = true
+	sync.unlock(&checker.mu)
+
+	h := pq.host(pg_conn^)
+	p := pq.port(pg_conn^)
+	u := pq.user(pg_conn^)
+	pw := pq.pass(pg_conn^)
+	if pw == nil {pw = ""}
+	db := pq.db(pg_conn^)
+	ssl: cstring = "require" if pq.ssl_in_use(pg_conn^) else "disable"
+
+	args := new(_Health_Check_Args)
+	args.checker = checker
+	args.conn_string = strings.clone(
+		fmt.tprintf(
+			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+			h,
+			p,
+			u,
+			pw,
+			db,
+			ssl,
+		),
+	)
+
+	t := thread.create(_health_check_worker)
+	t.data = args
+	thread.start(t)
+	return t
+}
+
+pg_conn_status :: proc(checker: ^Conn_Health_Checker) -> ConnectionStatus {
+	sync.lock(&checker.mu)
+	defer sync.unlock(&checker.mu)
+	return checker.status
+}
+
 pg_server_version_major :: proc(conn: ^pq.Conn) -> i32 {
 	return pq.server_version(conn^) / 10000
 }
+
 
 pg_current_db :: proc(conn: ^pq.Conn) -> string {
 	return strings.clone_from_cstring(pq.db(conn^))

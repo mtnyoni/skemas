@@ -2,6 +2,8 @@ package main
 
 import "core:log"
 import "core:mem"
+import "core:thread"
+import "core:time"
 import im "vendor/odin-imgui"
 import "vendor/odin-imgui/imgui_impl_sdl2"
 import imgui_sql_renderer "vendor/odin-imgui/imgui_impl_sdlrenderer2"
@@ -127,6 +129,12 @@ main :: proc() {
 	colors[im.Col.HeaderActive] = COLOR_MUTED_BACKGROUND
 	colors[im.Col.ScrollbarBg] = COLOR_BACKGROUND
 
+	last_conn_check := time.tick_now()
+	conn_check_interval :: 5 * time.Second
+	health_checker: Conn_Health_Checker
+	health_checker.status = .Connected
+	health_thread: ^thread.Thread
+
 	for running {
 		e: sdl.Event
 
@@ -139,11 +147,23 @@ main :: proc() {
 			}
 		}
 
+		if pg_conn, ok := state.conn.(PQ_Conn); ok {
+			state.conn_status = pg_conn_status(&health_checker)
+
+			if time.tick_since(last_conn_check) >= conn_check_interval {
+				last_conn_check = time.tick_now()
+				if health_thread != nil {
+					thread.join(health_thread)
+					thread.destroy(health_thread)
+				}
+
+				health_thread = pg_spawn_health_check(&health_checker, pg_conn)
+			}
+		}
+
 		imgui_sql_renderer.NewFrame()
 		imgui_impl_sdl2.NewFrame()
 		im.NewFrame()
-
-		// im.DockSpaceOverViewport()
 
 		switch state.screen {
 		case .ConnectionScreen:
