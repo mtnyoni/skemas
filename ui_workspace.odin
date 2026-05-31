@@ -92,7 +92,19 @@ Workspace_ContentProps :: struct {
 }
 
 Workspace_Content :: proc(props: ^Workspace_ContentProps) {
-	// Breadcrumb + toolbar
+	// Push shared button style once for the whole toolbar so
+	// AlignTextToFramePadding centers text to the same vertical midpoint
+	// as the buttons (FramePadding.y = 2).
+	im.PushStyleVar(.FrameBorderSize, 1.0)
+	im.PushStyleVar(.FrameRounding, 4)
+	im.PushStyleVarImVec2(.FramePadding, {10, 2})
+	im.PushStyleColorImVec4(.Button, COLOR_BACKGROUND)
+	im.PushStyleColorImVec4(.ButtonHovered, COLOR_MUTED_BACKGROUND)
+	im.PushStyleColorImVec4(.ButtonActive, COLOR_MUTED_BACKGROUND)
+
+	im.AlignTextToFramePadding()
+
+	// Breadcrumb
 	im.PushFont(FONT_REGULAR_SM)
 	im.PushStyleColorImVec4(.Text, COLOR_MUTED_FOREGROUND)
 	if props.selected_db^ != "" {
@@ -124,9 +136,7 @@ Workspace_Content :: proc(props: ^Workspace_ContentProps) {
 	}
 	im.PopFont()
 
-	im.SameLine()
-	im.Button("Data")
-
+	// Toolbar buttons — inherit shared style, no per-button push/pop needed.
 	style := im.GetStyle()
 	refresh_lbl: cstring = "↻"
 	row_lbl: cstring = "+ Row"
@@ -134,12 +144,113 @@ Workspace_Content :: proc(props: ^Workspace_ContentProps) {
 	row_w := im.CalcTextSize(row_lbl).x + style.FramePadding.x * 2
 	right_x :=
 		im.GetWindowWidth() - style.WindowPadding.x - row_w - refresh_w - style.ItemSpacing.x
+
+	im.SameLine()
+	im.Button("Data")
 	im.SameLine(right_x)
 	if im.Button(refresh_lbl) {
 		props.prev_selected_table^ = ""
 	}
 	im.SameLine()
 	im.Button(row_lbl)
+
+	im.PopStyleColor(3)
+	im.PopStyleVar(3)
+
+	{
+		dl := im.GetWindowDrawList()
+		y := im.GetCursorScreenPos().y
+		x := im.GetWindowPos().x
+		im.DrawList_AddLine(
+			dl,
+			{x, y},
+			{x + im.GetWindowWidth(), y},
+			im.GetColorU32(.Separator),
+			1.0,
+		)
+		im.Dummy({0, 1})
+	}
+
+	im.TextDisabled("where")
+
+	im.SameLine(0, 6)
+	{
+		PAD_X :: f32(8)
+		PAD_Y :: f32(4)
+		SPACING :: f32(4)
+		DASH :: f32(4)
+		GAP :: f32(3)
+		ROUNDING :: f32(4)
+
+		im.PushFont(FONT_ICONS)
+		icon_w := im.CalcTextSize(ICON_PLUS).x
+		icon_h := im.CalcTextSize(ICON_PLUS).y
+		im.PopFont()
+		label_sz := im.CalcTextSize("Filter")
+
+		btn_w := PAD_X * 2 + icon_w + SPACING + label_sz.x
+		btn_h := PAD_Y * 2 + label_sz.y
+
+		pos := im.GetCursorScreenPos()
+		im.InvisibleButton("##add_filter", {btn_w, btn_h})
+		hovered := im.IsItemHovered()
+
+		dl := im.GetWindowDrawList()
+		x1 := pos.x
+		y1 := pos.y
+		x2 := x1 + btn_w
+		y2 := y1 + btn_h
+		col := im.GetColorU32ImVec4(COLOR_BORDER)
+
+		// Dashed edges — each truncated by ROUNDING at both ends so the
+		// corners are left clear for the arc segments below.
+		{x, on := x1 + ROUNDING, true
+			for x <
+			    x2 -
+				    ROUNDING {nx := min(x + (DASH if on else GAP), x2 - ROUNDING); if on {im.DrawList_AddLine(dl, {x, y1}, {nx, y1}, col)}; x, on = nx, !on}}
+		{x, on := x1 + ROUNDING, true
+			for x <
+			    x2 -
+				    ROUNDING {nx := min(x + (DASH if on else GAP), x2 - ROUNDING); if on {im.DrawList_AddLine(dl, {x, y2}, {nx, y2}, col)}; x, on = nx, !on}}
+		{y, on := y1 + ROUNDING, true
+			for y <
+			    y2 -
+				    ROUNDING {ny := min(y + (DASH if on else GAP), y2 - ROUNDING); if on {im.DrawList_AddLine(dl, {x1, y}, {x1, ny}, col)}; y, on = ny, !on}}
+		{y, on := y1 + ROUNDING, true
+			for y <
+			    y2 -
+				    ROUNDING {ny := min(y + (DASH if on else GAP), y2 - ROUNDING); if on {im.DrawList_AddLine(dl, {x2, y}, {x2, ny}, col)}; y, on = ny, !on}}
+
+		// Rounded corners using PathArcToFast (12-step circle: 0=0°, 3=90°, 6=180°, 9=270°)
+		im.DrawList_PathClear(
+			dl,
+		); im.DrawList_PathArcToFast(dl, {x1 + ROUNDING, y1 + ROUNDING}, ROUNDING, 6, 9); im.DrawList_PathStroke(dl, col)
+		im.DrawList_PathClear(
+			dl,
+		); im.DrawList_PathArcToFast(dl, {x2 - ROUNDING, y1 + ROUNDING}, ROUNDING, 9, 12); im.DrawList_PathStroke(dl, col)
+		im.DrawList_PathClear(
+			dl,
+		); im.DrawList_PathArcToFast(dl, {x2 - ROUNDING, y2 - ROUNDING}, ROUNDING, 0, 3); im.DrawList_PathStroke(dl, col)
+		im.DrawList_PathClear(
+			dl,
+		); im.DrawList_PathArcToFast(dl, {x1 + ROUNDING, y2 - ROUNDING}, ROUNDING, 3, 6); im.DrawList_PathStroke(dl, col)
+
+		text_color := im.GetColorU32ImVec4(COLOR_MUTED_FOREGROUND)
+		im.DrawList_AddTextImFontPtr(
+			dl,
+			FONT_ICONS,
+			0,
+			{x1 + PAD_X, y1 + (btn_h - icon_h) * 0.5},
+			text_color,
+			ICON_PLUS,
+		)
+		im.DrawList_AddText(
+			dl,
+			{x1 + PAD_X + icon_w + SPACING, y1 + (btn_h - label_sz.y) * 0.5},
+			text_color,
+			"Filter",
+		)
+	}
 
 	{
 		dl := im.GetWindowDrawList()
@@ -158,21 +269,41 @@ Workspace_Content :: proc(props: ^Workspace_ContentProps) {
 	if props.selected_table^ != "" && len(props.query_result^.headers) > 0 {
 		col_count := c.int(len(props.query_result^.headers))
 		table_flags :=
-			im.TableFlags_Borders |
+			im.TableFlags_BordersInner |
+			im.TableFlags_NoPadOuterX |
 			im.TableFlags_RowBg |
 			im.TableFlags_ScrollX |
 			im.TableFlags_ScrollY |
 			im.TableFlags_Resizable |
 			im.TableFlags_Reorderable
+
+
+		im.PushStyleColorImVec4(.TableBorderLight, COLOR_BORDER)
 		avail := im.GetContentRegionAvail()
 		if im.BeginTable("##tabledata", col_count, table_flags, avail) {
 			im.TableSetupScrollFreeze(0, 1)
+
 			for header in props.query_result^.headers {
 				cheader := strings.clone_to_cstring(header)
 				defer delete(cheader)
 				im.TableSetupColumn(cheader)
 			}
-			im.TableHeadersRow()
+
+			im.PushFont(FONT_MEDIUM)
+			im.PushStyleColorImVec4(.TableHeaderBg, COLOR_MUTED_BACKGROUND)
+			im.PushStyleColorImVec4(.Text, COLOR_MUTED_FOREGROUND)
+			im.TableNextRow({.Headers})
+
+			for header, col in props.query_result^.headers {
+				im.TableSetColumnIndex(c.int(col))
+				cheader := strings.clone_to_cstring(header)
+				defer delete(cheader)
+				im.TableHeader(cheader)
+			}
+
+			im.PopStyleColor(2)
+			im.PopFont()
+
 			for row in props.query_result^.rows {
 				im.TableNextRow()
 				for cell, col in row {
@@ -184,5 +315,6 @@ Workspace_Content :: proc(props: ^Workspace_ContentProps) {
 			}
 			im.EndTable()
 		}
+		im.PopStyleColor() // TableBorderLight
 	}
 }

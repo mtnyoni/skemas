@@ -11,6 +11,25 @@ import pq "vendor/odin-postgresql"
 import sqlite "vendor/odin-sqlite3"
 
 import sdl "vendor:sdl2"
+import img "vendor:sdl2/image"
+
+apply_style :: proc(style: ^im.Style, base: im.Style, dpi_scale: f32) {
+	style^ = base
+	im.Style_ScaleAllSizes(style, dpi_scale)
+	style.ScrollbarSize = 10.0
+	style.ScrollbarRounding = 8.0
+	style.Colors[im.Col.WindowBg] = COLOR_BACKGROUND
+	style.Colors[im.Col.ChildBg] = COLOR_BACKGROUND
+	style.Colors[im.Col.PopupBg] = COLOR_BACKGROUND
+	style.Colors[im.Col.Text] = COLOR_FOREGROUND
+	style.Colors[im.Col.TextDisabled] = COLOR_MUTED_FOREGROUND
+	style.Colors[im.Col.Border] = COLOR_BORDER
+	style.Colors[im.Col.Separator] = COLOR_BORDER
+	style.Colors[im.Col.Header] = COLOR_MUTED_BACKGROUND
+	style.Colors[im.Col.HeaderHovered] = COLOR_MUTED_BACKGROUND
+	style.Colors[im.Col.HeaderActive] = COLOR_MUTED_BACKGROUND
+	style.Colors[im.Col.ScrollbarBg] = COLOR_BACKGROUND
+}
 
 main :: proc() {
 	track: mem.Tracking_Allocator
@@ -32,6 +51,19 @@ main :: proc() {
 	assert(window != nil)
 	defer sdl.DestroyWindow(window)
 
+	if img.Init({.PNG}) == {} {
+		panic("Failed to initialize SDL_image")
+	}
+	defer img.Quit()
+
+	{
+		icon := img.Load("assets/s.png")
+		if icon != nil {
+			defer sdl.FreeSurface(icon)
+			sdl.SetWindowIcon(window, icon)
+		}
+	}
+
 	renderer := sdl.CreateRenderer(window, -1, {.PRESENTVSYNC, .ACCELERATED})
 	assert(renderer != nil)
 	defer sdl.DestroyRenderer(renderer)
@@ -45,6 +77,16 @@ main :: proc() {
 	sdl.GetRendererOutputSize(renderer, &drawable_w, &drawable_h)
 
 	dpi_scale := f32(drawable_w) / f32(w)
+	// On Linux X11, SDL2 always reports pixel_ratio = 1.0 because the
+	// compositor applies scaling below SDL2's level. Use the physical display
+	// DPI to derive the true scale factor so fonts match other DPI-aware apps.
+	if dpi_scale == 1.0 {
+		ddpi, hdpi, vdpi: f32
+		display_idx := sdl.GetWindowDisplayIndex(window)
+		if sdl.GetDisplayDPI(display_idx, &ddpi, &hdpi, &vdpi) == 0 && hdpi > 0 {
+			dpi_scale = max(dpi_scale, hdpi / 96.0)
+		}
+	}
 
 	io := im.GetIO()
 	load_fonts(io, dpi_scale)
@@ -52,11 +94,11 @@ main :: proc() {
 	io.ConfigFlags += {.DockingEnable}
 	im.StyleColorsLight()
 	style := im.GetStyle()
-	im.Style_ScaleAllSizes(style, dpi_scale)
 
-	style.ScrollbarSize = 10.0
-	style.ScrollbarRounding = 8.0
-
+	// Save unscaled base style (light colors, default sizes) so we can
+	// restore it cleanly when the display DPI changes.
+	base_style := style^
+	apply_style(style, base_style, dpi_scale)
 
 	imgui_impl_sdl2.InitForSDLRenderer(window, renderer)
 	defer imgui_impl_sdl2.Shutdown()
@@ -86,19 +128,6 @@ main :: proc() {
 		log.errorf("%v", err)
 		panic(err.(DB_ExecFailed).message)
 	}
-
-	// setup theme.
-	style.Colors[im.Col.WindowBg] = COLOR_BACKGROUND
-	style.Colors[im.Col.ChildBg] = COLOR_BACKGROUND
-	style.Colors[im.Col.PopupBg] = COLOR_BACKGROUND
-	style.Colors[im.Col.Text] = COLOR_FOREGROUND
-	style.Colors[im.Col.TextDisabled] = COLOR_MUTED_FOREGROUND
-	style.Colors[im.Col.Border] = COLOR_BORDER
-	style.Colors[im.Col.Separator] = COLOR_BORDER
-	style.Colors[im.Col.Header] = COLOR_MUTED_BACKGROUND
-	style.Colors[im.Col.HeaderHovered] = COLOR_MUTED_BACKGROUND
-	style.Colors[im.Col.HeaderActive] = COLOR_MUTED_BACKGROUND
-	style.Colors[im.Col.ScrollbarBg] = COLOR_BACKGROUND
 
 	last_conn_check := time.tick_now()
 	conn_check_interval :: 5 * time.Second
@@ -133,6 +162,7 @@ main :: proc() {
 				}
 				health_thread = pg_spawn_health_check(&health_checker, pg_conn)
 			}
+
 		} else if prev_pg_conn != nil {
 			// Connection was just dropped — clean up.
 			if health_thread != nil {
@@ -144,6 +174,33 @@ main :: proc() {
 			health_checker.status = .Disconnected
 			pq.finish(prev_pg_conn^)
 			prev_pg_conn = nil
+		}
+
+		// Detect display DPI change (e.g. moving to a different monitor or
+		// changing the system scale factor) and rebuild fonts + style.
+		{
+			cur_w, cur_h: i32
+			cur_dw, cur_dh: i32
+			sdl.GetWindowSize(window, &cur_w, &cur_h)
+			sdl.GetRendererOutputSize(renderer, &cur_dw, &cur_dh)
+			if cur_w > 0 {
+				new_dpi := f32(cur_dw) / f32(cur_w)
+				if new_dpi == 1.0 {
+					ddpi, hdpi, vdpi: f32
+					display_idx := sdl.GetWindowDisplayIndex(window)
+					if sdl.GetDisplayDPI(display_idx, &ddpi, &hdpi, &vdpi) == 0 && hdpi > 0 {
+						new_dpi = max(new_dpi, hdpi / 96.0)
+					}
+				}
+				if new_dpi != dpi_scale {
+					dpi_scale = new_dpi
+					imgui_sql_renderer.DestroyFontsTexture()
+					im.FontAtlas_Clear(io.Fonts)
+					load_fonts(io, dpi_scale)
+					imgui_sql_renderer.CreateFontsTexture()
+					apply_style(style, base_style, dpi_scale)
+				}
+			}
 		}
 
 		imgui_sql_renderer.NewFrame()
