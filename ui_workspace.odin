@@ -53,9 +53,12 @@ UIWorkspace :: proc(state: ^App_State) {
 		},
 	)
 
-	// ── Shared content area ───────────────────────────────────────────────────
 	im.SetNextWindowPos({SIDEBAR_WIDTH, 0}, .Always)
 	im.SetNextWindowSize({display.x - SIDEBAR_WIDTH, display.y - WORKSPACE_STATUS_BAR_H}, .Always)
+
+	im.PushStyleVar(.WindowBorderSize, 0)
+	defer im.PopStyleVar()
+
 	im.Begin(
 		"##content",
 		nil,
@@ -267,47 +270,47 @@ Workspace_Sidebar :: proc(props: Workspace_SidebarProps) {
 		im.Begin("DBs", nil, {.NoMove, .NoResize, .NoCollapse, .NoScrollbar, .NoTitleBar})
 		defer im.End()
 
-		im.Text("Database")
-		im.SetNextItemWidth(-1)
-		db_label := strings.clone_to_cstring(
-			props.selected_db^ if props.selected_db^ != "" else "Select database...",
+		DB_Servers_Select(
+			{
+				schemas_loaded = props.schemas_loaded,
+				prev_selected_schema = props.prev_selected_schema,
+				selected_schema = props.selected_schema,
+				loaded_schemas = props.loaded_schemas,
+				tables_loaded = props.tables_loaded,
+				selected_table = props.selected_table,
+				prev_selected_table = props.prev_selected_table,
+				loaded_tables = props.loaded_tables,
+				query_result = props.query_result,
+				query_time_ms = props.query_time_ms,
+				pg_major_version = props.pg_major_version,
+				state = props.state,
+			},
 		)
-		defer delete(db_label)
-		if im.BeginCombo("##db_select", db_label) {
-			for db in props.loaded_dbs^ {
-				cname := strings.clone_to_cstring(db)
-				defer delete(cname)
-				if im.Selectable(cname, props.selected_db^ == db) {
-					props.selected_db^ = db
-					props.loaded_schemas^ = nil
-					props.schemas_loaded^ = false
-					props.tables_loaded^ = false
-					props.loaded_tables^ = nil
-				}
-			}
-			im.EndCombo()
-		}
+
+		draw_db_schema_dropdown(
+			props.loaded_dbs^,
+			props.loaded_schemas^,
+			props.selected_db,
+			props.selected_schema,
+		)
 
 		im.Spacing()
-		im.Text("Schema")
-		im.SetNextItemWidth(-1)
-		schema_label := strings.clone_to_cstring(
-			props.selected_schema^ if props.selected_schema^ != "" else "Select schema...",
+		im.PushFont(FONT_REGULAR)
+		im.TextDisabled("Tables")
+		count_lbl := strings.clone_to_cstring(
+			fmt.tprintf("%d", len(props.loaded_tables^)),
+			context.temp_allocator,
 		)
-		defer delete(schema_label)
-		if im.BeginCombo("##schema_select", schema_label) {
-			for s in props.loaded_schemas^ {
-				cname := strings.clone_to_cstring(s)
-				defer delete(cname)
-				if im.Selectable(cname, props.selected_schema^ == s) {
-					props.selected_schema^ = s
-				}
-			}
-			im.EndCombo()
-		}
+		count_w := im.CalcTextSize(count_lbl).x
+		im.SameLine(im.GetWindowWidth() - im.GetStyle().WindowPadding.x - count_w)
+		im.PushStyleColorImVec4(.Text, COLOR_MUTED_FOREGROUND)
+		im.TextUnformatted(count_lbl)
+		im.PopStyleColor()
+		im.PopFont()
 
-		im.Spacing()
-		im.Text("Tables")
+		im.PushStyleVar(.ChildRounding, 4)
+		defer im.PopStyleVar()
+
 		im.BeginChild("##tables_list", {-1, -1}, {.Borders})
 		for tbl in props.loaded_tables^ {
 			cname := strings.clone_to_cstring(tbl)
@@ -348,7 +351,18 @@ Workspace_Sidebar :: proc(props: Workspace_SidebarProps) {
 		im.Begin("Tables", nil, {.NoMove, .NoResize, .NoCollapse, .NoScrollbar, .NoTitleBar})
 		defer im.End()
 
-		im.Text("Tables")
+		im.PushFont(FONT_REGULAR_SM)
+		im.TextDisabled("Tables")
+		sq_count_lbl := strings.clone_to_cstring(
+			fmt.tprintf("%d", len(props.loaded_tables^)),
+			context.temp_allocator,
+		)
+		sq_count_w := im.CalcTextSize(sq_count_lbl).x
+		im.SameLine(im.GetWindowWidth() - im.GetStyle().WindowPadding.x - sq_count_w)
+		im.PushStyleColorImVec4(.Text, COLOR_MUTED_FOREGROUND)
+		im.TextUnformatted(sq_count_lbl)
+		im.PopStyleColor()
+		im.PopFont()
 		im.BeginChild("##tables_list", {-1, -1}, {.Borders})
 		for tbl in props.loaded_tables^ {
 			cname := strings.clone_to_cstring(tbl)
@@ -356,7 +370,270 @@ Workspace_Sidebar :: proc(props: Workspace_SidebarProps) {
 			if im.Selectable(cname, props.selected_table^ == tbl) {
 				props.selected_table^ = tbl
 			}
+
+			if props.selected_table^ == tbl {
+				count_lbl := strings.clone_to_cstring(
+					fmt.tprintf("%d", len(props.query_result^.rows)),
+					context.temp_allocator,
+				)
+				im.PushFont(FONT_REGULAR_SM)
+				count_w := im.CalcTextSize(count_lbl).x
+				im.SameLine(im.GetWindowWidth() - im.GetStyle().WindowPadding.x * 2 - count_w)
+				im.PushStyleColorImVec4(.Text, COLOR_MUTED_FOREGROUND)
+				im.TextUnformatted(count_lbl)
+				im.PopStyleColor()
+				im.PopFont()
+			}
 		}
 		im.EndChild()
+	}
+
+	im.DrawList_AddLine(
+		im.GetForegroundDrawList(),
+		{SIDEBAR_WIDTH, 0},
+		{SIDEBAR_WIDTH, props.display_h - WORKSPACE_STATUS_BAR_H},
+		im.GetColorU32(.Separator),
+		1.0,
+	)
+}
+
+DB_SCHEMA_POPUP_NAME :: "##db_schema_dual_popup"
+
+draw_db_schema_dropdown :: proc(
+	loaded_dbs: []string,
+	loaded_schemas: []string,
+	selected_db: ^string,
+	selected_schema: ^string,
+) {
+	@(static) hovered_db: string
+
+	label_buf: [256]byte
+	label_str: string
+	if selected_db^ != "" && selected_schema^ != "" {
+		label_str = fmt.bprintf(label_buf[:], "%s · %s", selected_db^, selected_schema^)
+	} else {
+		label_str = "Select database & schema..."
+	}
+	clabel := strings.clone_to_cstring(label_str, context.temp_allocator)
+
+	im.SetNextItemWidth(-1)
+	im.PushStyleVar(.FrameBorderSize, 1.0)
+	im.PushStyleVar(.FrameRounding, 4)
+	im.PushStyleVarImVec2(.ButtonTextAlign, {0.0, 0.5})
+	im.PushStyleColorImVec4(.FrameBgHovered, COLOR_MUTED_BACKGROUND)
+	im.PushStyleColorImVec4(.Button, COLOR_BACKGROUND)
+	im.PushStyleColorImVec4(.ButtonHovered, COLOR_MUTED_BACKGROUND)
+	im.PushStyleColorImVec4(.ButtonActive, COLOR_MUTED_BACKGROUND)
+
+	if im.Button(clabel, {-1, 0}) {
+		im.OpenPopup(DB_SCHEMA_POPUP_NAME)
+	}
+	{
+		item_min := im.GetItemRectMin()
+		item_max := im.GetItemRectMax()
+		frame_h := im.GetFrameHeight()
+		padding := im.GetStyle().FramePadding
+		im.DrawList_AddTextImFontPtr(
+			im.GetWindowDrawList(),
+			FONT_ICONS,
+			0,
+			{item_max.x - frame_h + padding.x, item_min.y + padding.y},
+			im.GetColorU32(.Text),
+			ICON_ANGLE_DOWN,
+		)
+	}
+	im.PopStyleColor(4)
+	im.PopStyleVar(3)
+
+	im.SetNextWindowSize({460, 280}, .Appearing)
+	im.PushStyleVarImVec2(.WindowPadding, {12, 12})
+	defer im.PopStyleVar()
+
+	if im.BeginPopup(DB_SCHEMA_POPUP_NAME) {
+		if hovered_db == "" && len(loaded_dbs) > 0 {
+			hovered_db = selected_db^ != "" ? selected_db^ : loaded_dbs[0]
+		}
+
+		im.Columns(2, "##db_schema_cols", true)
+		if im.GetColumnWidth(0) == 0 {
+			im.SetColumnWidth(0, 180)
+		}
+
+		im.TextDisabled("DATABASES")
+		im.Separator()
+		im.Spacing()
+		for db in loaded_dbs {
+			cname := strings.clone_to_cstring(db, context.temp_allocator)
+			if im.Selectable(cname, hovered_db == db, {.AllowOverlap}) {
+				if db != selected_db^ {
+					selected_db^ = db
+					selected_schema^ = ""
+					hovered_db = db
+					im.CloseCurrentPopup()
+				} else {
+					hovered_db = db
+				}
+			}
+			if im.IsItemHovered() {
+				hovered_db = db
+			}
+		}
+
+		im.NextColumn()
+
+		active_schemas := loaded_schemas if hovered_db == selected_db^ else []string{}
+
+		schema_title := fmt.tprintf("%d SCHEMAS", len(active_schemas))
+		im.TextDisabled(strings.clone_to_cstring(schema_title, context.temp_allocator))
+		im.Separator()
+		im.Spacing()
+
+		if len(active_schemas) == 0 && hovered_db != selected_db^ {
+			im.TextDisabled("Click to switch database")
+		}
+
+		for s, i in active_schemas {
+			cs := strings.clone_to_cstring(s, context.temp_allocator)
+			is_selected := selected_db^ == hovered_db && selected_schema^ == s
+
+			start_pos_x := im.GetCursorPosX()
+
+			if im.Selectable(cs, is_selected) {
+				selected_db^ = hovered_db
+				selected_schema^ = s
+				hovered_db = ""
+				im.CloseCurrentPopup()
+			}
+			if i == 0 {
+				im.SameLine()
+				right_align_x := start_pos_x + im.GetContentRegionAvail().x - 45
+				im.SetCursorPosX(right_align_x)
+				im.TextDisabled("default")
+			}
+		}
+
+		im.Columns(1)
+		im.EndPopup()
+	}
+}
+
+DB_Servers_SelectProps :: struct {
+	schemas_loaded:       ^bool,
+	prev_selected_schema: ^string,
+	selected_schema:      ^string,
+	loaded_schemas:       ^[]string,
+	tables_loaded:        ^bool,
+	selected_table:       ^string,
+	prev_selected_table:  ^string,
+	loaded_tables:        ^[]string,
+	query_result:         ^QueryResult,
+	query_time_ms:        ^f64,
+	pg_major_version:     ^i32,
+	state:                ^App_State,
+}
+
+DB_Servers_Select :: proc(props: DB_Servers_SelectProps) {
+	@(static) connections: []Connection
+	@(static) connections_loaded: bool
+	@(static) active_conn_name: string
+
+	if !connections_loaded {
+		conns, err := get_connections(props.state.app_db)
+		if err == nil {
+			connections = conns
+		}
+		connections_loaded = true
+	}
+
+	im.TextDisabled("Servers")
+	conn_label := strings.clone_to_cstring(
+		active_conn_name if active_conn_name != "" else "Select connection...",
+		context.temp_allocator,
+	)
+
+	im.SetNextItemWidth(-1)
+	im.PushStyleVar(.FrameBorderSize, 1.0)
+	im.PushStyleVar(.FrameRounding, 4)
+	defer im.PopStyleVar(2)
+	im.PushStyleColorImVec4(.FrameBgHovered, COLOR_MUTED_BACKGROUND)
+	defer im.PopStyleColor()
+
+	combo_open := im.BeginCombo("##db_servers_select", conn_label, {.NoArrowButton})
+	{
+		item_min := im.GetItemRectMin()
+		item_max := im.GetItemRectMax()
+		frame_h := im.GetFrameHeight()
+		padding := im.GetStyle().FramePadding
+		im.DrawList_AddTextImFontPtr(
+			im.GetWindowDrawList(),
+			FONT_ICONS,
+			0,
+			{item_max.x - frame_h + padding.x, item_min.y + padding.y},
+			im.GetColorU32(.Text),
+			ICON_ANGLE_DOWN,
+		)
+	}
+	if combo_open {
+		for conn in connections {
+			cname := strings.clone_to_cstring(conn.name, context.temp_allocator)
+			if im.Selectable(cname, active_conn_name == conn.name) &&
+			   conn.name != active_conn_name {
+				cred, cred_err := get_credential(props.state.app_db, conn.credential_id)
+				if cred_err != nil {im.EndCombo(); return}
+
+				new_cred := New_Credential {
+					auth_type  = cred.auth_type,
+					secret_key = cred.secret_key,
+				}
+				new_conn_data := New_Connection {
+					name        = conn.name,
+					db_type     = conn.db_type,
+					host        = conn.host,
+					port        = conn.port,
+					username    = conn.username,
+					ssl_enabled = conn.sql_enabled,
+				}
+				params := Db_New_Connection {
+					creds = &new_cred,
+					conn  = &new_conn_data,
+				}
+
+				// Reset all state for the old connection immediately
+				props.state.conn_status = .Connecting
+				props.schemas_loaded^ = false
+				props.prev_selected_schema^ = ""
+				props.selected_schema^ = ""
+				props.loaded_schemas^ = nil
+				props.tables_loaded^ = false
+				props.selected_table^ = ""
+				props.prev_selected_table^ = ""
+				props.loaded_tables^ = nil
+				props.query_result^ = {}
+				props.query_time_ms^ = 0
+				props.pg_major_version^ = 0
+
+				switch conn.db_type {
+				case .Postgres:
+					pg_conn, err := pg_connect(params)
+					if err == nil {
+						props.state.conn = pg_conn
+						props.state.db_needs_reload = true
+						active_conn_name = conn.name
+					} else {
+						props.state.conn_status = .Disconnected
+					}
+				case .SQLite:
+					sq_conn, err := sqlite_connect(params)
+					if err == nil {
+						props.state.conn = sq_conn
+						props.state.db_needs_reload = true
+						active_conn_name = conn.name
+					} else {
+						props.state.conn_status = .Disconnected
+					}
+				}
+			}
+		}
+		im.EndCombo()
 	}
 }

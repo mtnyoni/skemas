@@ -12,39 +12,6 @@ import sqlite "vendor/odin-sqlite3"
 
 import sdl "vendor:sdl2"
 
-FONT_REGULAR_SM: ^im.Font
-FONT_REGULAR: ^im.Font
-FONT_MEDIUM_SM: ^im.Font
-FONT_MEDIUM: ^im.Font
-
-
-load_fonts :: proc(io: ^im.IO, dpi_scale: f32) {
-
-	FONT_REGULAR = im.FontAtlas_AddFontFromFileTTF(
-		io.Fonts,
-		"fonts/Inter_18pt-Regular.ttf",
-		16.0 * dpi_scale,
-	)
-
-	FONT_REGULAR_SM = im.FontAtlas_AddFontFromFileTTF(
-		io.Fonts,
-		"fonts/Inter_18pt-Regular.ttf",
-		13.0 * dpi_scale,
-	)
-
-	FONT_MEDIUM_SM = im.FontAtlas_AddFontFromFileTTF(
-		io.Fonts,
-		"fonts/Inter_18pt-Medium.ttf",
-		13.0 * dpi_scale,
-	)
-
-	FONT_MEDIUM = im.FontAtlas_AddFontFromFileTTF(
-		io.Fonts,
-		"fonts/Inter_18pt-Medium.ttf",
-		16.0 * dpi_scale,
-	)
-}
-
 main :: proc() {
 	track: mem.Tracking_Allocator
 	mem.tracking_allocator_init(&track, context.allocator)
@@ -86,6 +53,10 @@ main :: proc() {
 	im.StyleColorsLight()
 	style := im.GetStyle()
 	im.Style_ScaleAllSizes(style, dpi_scale)
+
+	style.ScrollbarSize = 10.0
+	style.ScrollbarRounding = 8.0
+
 
 	imgui_impl_sdl2.InitForSDLRenderer(window, renderer)
 	defer imgui_impl_sdl2.Shutdown()

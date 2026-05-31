@@ -1,6 +1,7 @@
 package main
 
 import "core:fmt"
+import "core:strconv"
 import "core:strings"
 import "core:sync"
 import "core:thread"
@@ -227,6 +228,33 @@ pg_get_schemas :: proc(conn: ^pq.Conn) -> ([]string, DB_Error) {
 	}
 
 	return result, nil
+}
+
+pg_get_table_row_counts :: proc(conn: ^pq.Conn, schema: string) -> map[string]i64 {
+	sql: cstring = `
+		SELECT relname, n_live_tup
+		FROM pg_stat_user_tables
+		WHERE schemaname = $1
+		ORDER BY relname
+	`
+	schema_cstr := strings.clone_to_cstring(schema, context.temp_allocator)
+	schema_val := cast([^]byte)schema_cstr
+	res := pq.exec_params(conn^, sql, 1, nil, &schema_val, nil, nil, .Text)
+	defer pq.clear(res)
+
+	counts := make(map[string]i64)
+	if pq.result_status(res) != .Tuples_OK {
+		return counts
+	}
+	n := pq.n_tuples(res)
+	for i in 0 ..< n {
+		name := strings.clone_from_cstring(cstring(pq.get_value(res, i, 0)))
+		count, _ := strconv.parse_i64(
+			strings.clone_from_cstring(cstring(pq.get_value(res, i, 1))),
+		)
+		counts[name] = count
+	}
+	return counts
 }
 
 pg_get_tables :: proc(conn: ^pq.Conn, schema: string) -> ([]string, DB_Error) {
