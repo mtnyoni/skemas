@@ -25,7 +25,7 @@ Supports **PostgreSQL** and **SQLite** — focused on making both work perfectly
 **Run locally**
 
 ```bash
-odin run . -collection:shared=vendor
+odin run . 
 ```
 
 **Build and install (Fedora/RPM)**
