@@ -36,7 +36,7 @@ PostgreSQL and SQLite only until both work perfectly and efficiently.
 
 ## SQLite
 
-- [ ] Select servers / files on SQLite (multiple databases)
+- [ ] Able to select saved servers whilst connected to Sqlite
 
 ## Infrastructure
 
