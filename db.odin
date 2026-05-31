@@ -2,13 +2,24 @@ package main
 
 import "core:c"
 import "core:encoding/uuid"
+import "core:fmt"
+import "core:os"
 import "core:strings"
 import sqlite "vendor/odin-sqlite3"
 
 
 connect :: proc() -> (^sqlite.Connection, DB_Error) {
+	data_home := os.get_env("XDG_DATA_HOME", context.temp_allocator)
+	if data_home == "" {
+		home := os.get_env("HOME", context.temp_allocator)
+		data_home = fmt.tprintf("%s/.local/share", home)
+	}
+	dir := fmt.tprintf("%s/skemas", data_home)
+	os.make_directory(dir)
+
+	path := strings.clone_to_cstring(fmt.tprintf("%s/db.sqlite", dir), context.temp_allocator)
 	db: ^sqlite.Connection = nil
-	if rc := sqlite.open("./db.sqlite", &db); rc != .Ok {
+	if rc := sqlite.open(path, &db); rc != .Ok {
 		return nil, DB_OpenFailed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 	return db, nil

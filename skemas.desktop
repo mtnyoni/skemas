@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Skemas
+Comment=Database client
+Exec=/usr/local/bin/skemas
+Icon=skemas
+Terminal=false
+Type=Application
+Categories=Development;Database;
