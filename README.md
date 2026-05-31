@@ -39,4 +39,4 @@ The app stores its data at `~/.local/share/skemas/` on Linux and `%APPDATA%\skem
 
 ## Status
 
-Early development — targeting **v1-beta by August 2026**, initially used at Claxon.
+Early development — targeting **v1-beta by August 2026**
