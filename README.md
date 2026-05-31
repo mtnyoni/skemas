@@ -2,6 +2,8 @@
 
 A fast, lightweight database client built with [Odin](https://odin-lang.org) and SDL2/ImGui.
 
+![Skemas](assets/screenshot.png)
+
 Supports **PostgreSQL** and **SQLite** — focused on making both work perfectly before expanding further.
 
 ## Goals
