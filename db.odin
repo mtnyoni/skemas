@@ -9,12 +9,18 @@ import sqlite "vendor/odin-sqlite3"
 
 
 connect :: proc() -> (^sqlite.Connection, DB_Error) {
-	data_home := os.get_env("XDG_DATA_HOME", context.temp_allocator)
-	if data_home == "" {
-		home := os.get_env("HOME", context.temp_allocator)
-		data_home = fmt.tprintf("%s/.local/share", home)
+	dir: string
+	when ODIN_OS == .Windows {
+		appdata := os.get_env("APPDATA", context.temp_allocator)
+		dir = fmt.tprintf("%s\\skemas", appdata)
+	} else {
+		data_home := os.get_env("XDG_DATA_HOME", context.temp_allocator)
+		if data_home == "" {
+			home := os.get_env("HOME", context.temp_allocator)
+			data_home = fmt.tprintf("%s/.local/share", home)
+		}
+		dir = fmt.tprintf("%s/skemas", data_home)
 	}
-	dir := fmt.tprintf("%s/skemas", data_home)
 	os.make_directory(dir)
 
 	path := strings.clone_to_cstring(fmt.tprintf("%s/db.sqlite", dir), context.temp_allocator)
