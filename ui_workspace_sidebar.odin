@@ -154,7 +154,7 @@ Workspace_Sidebar :: proc(props: Workspace_SidebarProps) {
 		im.TextDisabled("Tables")
 		im.PopFont()
 
-		im.PushFont(FONT_REGULAR_SM)
+		im.PushFont(FONT_REGULAR_XS)
 		count_lbl := strings.clone_to_cstring(
 			fmt.tprintf("%d", len(props.loaded_tables^)),
 			context.temp_allocator,
@@ -209,7 +209,7 @@ Workspace_Sidebar :: proc(props: Workspace_SidebarProps) {
 		im.Begin("Tables", nil, {.NoMove, .NoResize, .NoCollapse, .NoScrollbar, .NoTitleBar})
 		defer im.End()
 
-		im.PushFont(FONT_REGULAR_SM)
+		im.PushFont(FONT_REGULAR_XS)
 		im.TextDisabled("Tables")
 		sq_count_lbl := strings.clone_to_cstring(
 			fmt.tprintf("%d", len(props.loaded_tables^)),
@@ -235,7 +235,7 @@ Workspace_Sidebar :: proc(props: Workspace_SidebarProps) {
 					fmt.tprintf("%d", len(props.query_result^.rows)),
 					context.temp_allocator,
 				)
-				im.PushFont(FONT_REGULAR_SM)
+				im.PushFont(FONT_REGULAR_XS)
 				count_w := im.CalcTextSize(count_lbl).x
 				im.SameLine(im.GetWindowWidth() - im.GetStyle().WindowPadding.x * 2 - count_w)
 				im.PushStyleColorImVec4(.Text, COLOR_MUTED_FOREGROUND)

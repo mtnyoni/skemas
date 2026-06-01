@@ -29,7 +29,7 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 	)
 	defer im.End()
 
-	im.PushFont(FONT_REGULAR_SM)
+	im.PushFont(FONT_REGULAR_XS)
 	defer im.PopFont()
 
 	draw_list := im.GetWindowDrawList()

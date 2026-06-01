@@ -74,12 +74,12 @@ UIWorkspace :: proc(state: ^App_State) {
 	Workspace_Content(&cp)
 
 	sb_props := StatusBar_Props {
-		y_pos            = display.y - WORKSPACE_STATUS_BAR_H,
-		display_w        = display.x,
-		query_time_ms    = f32(query_time_ms),
-		state            = state,
+		y_pos = display.y - WORKSPACE_STATUS_BAR_H,
+		display_w = display.x,
+		query_time_ms = f32(query_time_ms),
+		state = state,
 		pg_major_version = pg_major_version,
-		page_info        = {current_page = &state.current_page, total_pages = &state.total_pages},
+		page_info = {current_page = &state.current_page, total_pages = &state.total_pages},
 	}
 	StatusBar(&sb_props)
 }
@@ -106,7 +106,7 @@ Workspace_Content :: proc(props: ^Workspace_ContentProps) {
 	im.AlignTextToFramePadding()
 
 	// Breadcrumb
-	im.PushFont(FONT_REGULAR_SM)
+	im.PushFont(FONT_REGULAR_XS)
 	im.PushStyleColorImVec4(.Text, COLOR_MUTED_FOREGROUND)
 	if props.selected_db^ != "" {
 		db_c := strings.clone_to_cstring(props.selected_db^)
@@ -242,87 +242,7 @@ Workspace_Content :: proc(props: ^Workspace_ContentProps) {
 	im.TextDisabled("where")
 
 	im.SameLine(0, 6)
-	{
-		PAD_X :: f32(8)
-		PAD_Y :: f32(4)
-		SPACING :: f32(4)
-		DASH :: f32(4)
-		GAP :: f32(3)
-		ROUNDING :: f32(4)
-
-		icon_buf: [5]u8
-		icon_s := icon_str(.Filter, &icon_buf)
-		im.PushFont(FONT_ICONS)
-		native := im.CalcTextSize(icon_s)
-		im.PopFont()
-		scale := ICON_SIZE / 16.0
-		icon_w := native.x * scale
-		icon_h := native.y * scale
-		label_sz := im.CalcTextSize("Filter")
-
-		btn_w := PAD_X * 2 + icon_w + SPACING + label_sz.x
-		btn_h := PAD_Y * 2 + label_sz.y
-
-		pos := im.GetCursorScreenPos()
-		im.InvisibleButton("##add_filter", {btn_w, btn_h})
-		hovered := im.IsItemHovered()
-
-		dl := im.GetWindowDrawList()
-		x1 := pos.x
-		y1 := pos.y
-		x2 := x1 + btn_w
-		y2 := y1 + btn_h
-		col := im.GetColorU32ImVec4(COLOR_BORDER)
-
-		// Dashed edges — each truncated by ROUNDING at both ends so the
-		// corners are left clear for the arc segments below.
-		{x, on := x1 + ROUNDING, true
-			for x <
-			    x2 -
-				    ROUNDING {nx := min(x + (DASH if on else GAP), x2 - ROUNDING); if on {im.DrawList_AddLine(dl, {x, y1}, {nx, y1}, col)}; x, on = nx, !on}}
-		{x, on := x1 + ROUNDING, true
-			for x <
-			    x2 -
-				    ROUNDING {nx := min(x + (DASH if on else GAP), x2 - ROUNDING); if on {im.DrawList_AddLine(dl, {x, y2}, {nx, y2}, col)}; x, on = nx, !on}}
-		{y, on := y1 + ROUNDING, true
-			for y <
-			    y2 -
-				    ROUNDING {ny := min(y + (DASH if on else GAP), y2 - ROUNDING); if on {im.DrawList_AddLine(dl, {x1, y}, {x1, ny}, col)}; y, on = ny, !on}}
-		{y, on := y1 + ROUNDING, true
-			for y <
-			    y2 -
-				    ROUNDING {ny := min(y + (DASH if on else GAP), y2 - ROUNDING); if on {im.DrawList_AddLine(dl, {x2, y}, {x2, ny}, col)}; y, on = ny, !on}}
-
-		// Rounded corners using PathArcToFast (12-step circle: 0=0°, 3=90°, 6=180°, 9=270°)
-		im.DrawList_PathClear(
-			dl,
-		); im.DrawList_PathArcToFast(dl, {x1 + ROUNDING, y1 + ROUNDING}, ROUNDING, 6, 9); im.DrawList_PathStroke(dl, col)
-		im.DrawList_PathClear(
-			dl,
-		); im.DrawList_PathArcToFast(dl, {x2 - ROUNDING, y1 + ROUNDING}, ROUNDING, 9, 12); im.DrawList_PathStroke(dl, col)
-		im.DrawList_PathClear(
-			dl,
-		); im.DrawList_PathArcToFast(dl, {x2 - ROUNDING, y2 - ROUNDING}, ROUNDING, 0, 3); im.DrawList_PathStroke(dl, col)
-		im.DrawList_PathClear(
-			dl,
-		); im.DrawList_PathArcToFast(dl, {x1 + ROUNDING, y2 - ROUNDING}, ROUNDING, 3, 6); im.DrawList_PathStroke(dl, col)
-
-		text_color := im.GetColorU32ImVec4(COLOR_MUTED_FOREGROUND)
-		im.DrawList_AddTextImFontPtr(
-			dl,
-			FONT_ICONS,
-			ICON_SIZE,
-			{x1 + PAD_X, y1 + (btn_h - icon_h) * 0.5},
-			text_color,
-			icon_s,
-		)
-		im.DrawList_AddText(
-			dl,
-			{x1 + PAD_X + icon_w + SPACING, y1 + (btn_h - label_sz.y) * 0.5},
-			text_color,
-			"Filter",
-		)
-	}
+	draw_filter_button()
 
 	{
 		dl := im.GetWindowDrawList()
@@ -389,4 +309,101 @@ Workspace_Content :: proc(props: ^Workspace_ContentProps) {
 		}
 		im.PopStyleColor() // TableBorderLight
 	}
+}
+
+draw_filter_button :: proc() {
+	PAD_X :: f32(8)
+	PAD_Y :: f32(4)
+	SPACING :: f32(4)
+	DASH :: f32(4)
+	GAP :: f32(3)
+	ROUNDING :: f32(4)
+
+	icon_buf: [5]u8
+	icon_s := icon_str(.Filter, &icon_buf)
+	im.PushFont(FONT_ICONS)
+	native := im.CalcTextSize(icon_s)
+	im.PopFont()
+
+	scale := ICON_SIZE / 16.0
+	icon_w := native.x * scale
+	icon_h := native.y * scale
+	label_sz := im.CalcTextSize("Filter")
+
+	btn_w := PAD_X * 2 + icon_w + SPACING + label_sz.x
+	btn_h := PAD_Y * 2 + label_sz.y
+
+	pos := im.GetCursorScreenPos()
+	im.InvisibleButton("##add_filter", {btn_w, btn_h})
+	hovered := im.IsItemHovered()
+
+	dl := im.GetWindowDrawList()
+	x1 := pos.x
+	y1 := pos.y
+	x2 := x1 + btn_w
+	y2 := y1 + btn_h
+	col := im.GetColorU32ImVec4(COLOR_BORDER)
+
+	// Dashed edges — each truncated by ROUNDING at both ends so the
+	// corners are left clear for the arc segments below.
+	{x, on := x1 + ROUNDING, true
+		for x <
+		    x2 -
+			    ROUNDING {nx := min(x + (DASH if on else GAP), x2 - ROUNDING); if on {im.DrawList_AddLine(dl, {x, y1}, {nx, y1}, col)}; x, on = nx, !on}}
+
+	{x, on := x1 + ROUNDING, true
+		for x <
+		    x2 -
+			    ROUNDING {nx := min(x + (DASH if on else GAP), x2 - ROUNDING); if on {im.DrawList_AddLine(dl, {x, y2}, {nx, y2}, col)}; x, on = nx, !on}}
+
+	{y, on := y1 + ROUNDING, true
+		for y <
+		    y2 -
+			    ROUNDING {ny := min(y + (DASH if on else GAP), y2 - ROUNDING); if on {im.DrawList_AddLine(dl, {x1, y}, {x1, ny}, col)}; y, on = ny, !on}}
+
+	{y, on := y1 + ROUNDING, true
+		for y <
+		    y2 -
+			    ROUNDING {ny := min(y + (DASH if on else GAP), y2 - ROUNDING); if on {im.DrawList_AddLine(dl, {x2, y}, {x2, ny}, col)}; y, on = ny, !on}}
+
+	// Rounded corners using PathArcToFast (12-step circle: 0=0°, 3=90°, 6=180°, 9=270°)
+	im.DrawList_PathClear(dl)
+	im.DrawList_PathArcToFast(dl, {x1 + ROUNDING, y1 + ROUNDING}, ROUNDING, 6, 9)
+	im.DrawList_PathStroke(dl, col)
+	im.DrawList_PathClear(dl)
+	im.DrawList_PathArcToFast(
+		dl,
+		{x2 - ROUNDING, y1 + ROUNDING},
+		ROUNDING,
+		9,
+		12,
+	); im.DrawList_PathStroke(dl, col)
+	im.DrawList_PathClear(dl)
+	im.DrawList_PathArcToFast(
+		dl,
+		{x2 - ROUNDING, y2 - ROUNDING},
+		ROUNDING,
+		0,
+		3,
+	); im.DrawList_PathStroke(dl, col)
+	im.DrawList_PathClear(dl)
+	im.DrawList_PathArcToFast(dl, {x1 + ROUNDING, y2 - ROUNDING}, ROUNDING, 3, 6)
+	im.DrawList_PathStroke(dl, col)
+
+	text_color := im.GetColorU32ImVec4(COLOR_MUTED_FOREGROUND)
+	im.DrawList_AddTextImFontPtr(
+		dl,
+		FONT_ICONS,
+		ICON_SIZE,
+		{x1 + PAD_X, y1 + (btn_h - icon_h) * 0.5},
+		text_color,
+		icon_s,
+	)
+
+	im.DrawList_AddText(
+		dl,
+		{x1 + PAD_X + icon_w + SPACING, y1 + (btn_h - label_sz.y) * 0.5},
+		text_color,
+		"Filter",
+	)
 }

@@ -50,6 +50,7 @@ icon_str :: proc(icon: Icon, buf: ^[5]u8) -> cstring {
 ICON_SIZE :: f32(14.0)
 
 // Font handles
+FONT_REGULAR_XS: ^im.Font
 FONT_REGULAR_SM: ^im.Font
 FONT_REGULAR: ^im.Font
 FONT_MEDIUM_SM: ^im.Font
@@ -63,10 +64,16 @@ load_fonts :: proc(io: ^im.IO, dpi_scale: f32) {
 		16.0 * dpi_scale,
 	)
 
-	FONT_REGULAR_SM = im.FontAtlas_AddFontFromFileTTF(
+	FONT_REGULAR_XS = im.FontAtlas_AddFontFromFileTTF(
 		io.Fonts,
 		"fonts/Inter_18pt-Regular.ttf",
 		13.0 * dpi_scale,
+	)
+
+	FONT_REGULAR_SM = im.FontAtlas_AddFontFromFileTTF(
+		io.Fonts,
+		"fonts/Inter_18pt-Regular.ttf",
+		15.0 * dpi_scale,
 	)
 
 	FONT_MEDIUM_SM = im.FontAtlas_AddFontFromFileTTF(
