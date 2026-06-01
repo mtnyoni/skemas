@@ -34,8 +34,8 @@ Icon :: enum u32 {
 	Bell              = 0xF01B, // 61467
 	Moon              = 0xF01C, // 61468
 	Plus              = 0xF01D, // 61469
-	ChevronUp         = 0xF01E, // 61470
-	ChevronLeft       = 0xF01F, // 61471
+	ChevronLeft       = 0xF01E, // 61470
+	ChevronUp         = 0xF01F, // 61471
 }
 
 

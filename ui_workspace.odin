@@ -79,6 +79,7 @@ UIWorkspace :: proc(state: ^App_State) {
 		query_time_ms    = f32(query_time_ms),
 		state            = state,
 		pg_major_version = pg_major_version,
+		page_info        = {current_page = &state.current_page, total_pages = &state.total_pages},
 	}
 	StatusBar(&sb_props)
 }

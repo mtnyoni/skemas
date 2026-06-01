@@ -12,6 +12,7 @@ StatusBar_Props :: struct {
 	state:            ^App_State,
 	pg_major_version: i32,
 	conn_status:      ConnectionStatus,
+	page_info:        PageInfo,
 }
 
 StatusBar :: proc(props: ^StatusBar_Props) {
@@ -107,11 +108,30 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 		context.temp_allocator,
 	)
 
-	pages_lbl: cstring = "< 1-14 >"
 	readonly_w := im.CalcTextSize(readonly_lbl).x
 	encoding_type_w := im.CalcTextSize(encoding_type_lbl).x
-	pages_w := im.CalcTextSize(pages_lbl).x
 	sep_w: f32 = 1.0 + style.ItemSpacing.x * 2
+
+	cur_page_lbl := strings.clone_to_cstring(
+		fmt.tprintf("%d", props.page_info.current_page^),
+		context.temp_allocator,
+	)
+	total_pages_lbl := strings.clone_to_cstring(
+		fmt.tprintf("%d", props.page_info.total_pages^),
+		context.temp_allocator,
+	)
+	im.PushFont(FONT_MEDIUM_SM)
+	cur_page_w := im.CalcTextSize(cur_page_lbl).x
+	total_pages_w_val := im.CalcTextSize(total_pages_lbl).x
+	im.PopFont()
+	of_w := im.CalcTextSize("of").x
+	NAV_ICON_SIZE :: f32(11.0)
+	chevron_buf: [5]u8
+	im.PushFont(FONT_ICONS)
+	nav_icon_w := im.CalcTextSize(icon_str(.ChevronRight, &chevron_buf)).x * (NAV_ICON_SIZE / 16.0)
+	im.PopFont()
+	nav_btn_w := nav_icon_w + style.FramePadding.x * 2
+	pages_w := nav_btn_w + 4 + cur_page_w + 3 + of_w + 3 + total_pages_w_val + 4 + nav_btn_w
 
 	BELL_ICON_SIZE :: f32(15.0)
 
@@ -126,7 +146,7 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 
 	im.SameLine(right_start)
 	im.SetCursorPosY(center_y)
-	im.TextDisabled(pages_lbl)
+	draw_pagination_ctrls(props.page_info)
 
 	im.SameLine()
 	vertical_separator(draw_list, win_pos, sep_color)
@@ -307,62 +327,59 @@ PageInfo :: struct {
 }
 
 draw_pagination_ctrls :: proc(page_info: PageInfo) {
-	icon_button_ex :: proc(icon: Icon, enabled: bool, label: cstring = "") -> bool {
-		im.PushFont(FONT_ICONS)
+	NAV_ICON_SIZE :: f32(11.0)
 
+	nav_btn :: proc(icon: Icon, id: cstring, enabled: bool) -> bool {
+		style := im.GetStyle()
+		dl := im.GetWindowDrawList()
+		btn_h := im.GetTextLineHeight()
+
+		im.PushFont(FONT_ICONS)
 		icon_buf: [5]u8
-		icon_size := im.CalcTextSize(icon_str(icon, &icon_buf))
+		native_w := im.CalcTextSize(icon_str(icon, &icon_buf)).x
 		im.PopFont()
 
-		button_size := im.Vec2{icon_size.x + 8, icon_size.y + 4}
+		icon_w := native_w * (NAV_ICON_SIZE / 16.0)
+		btn_w := icon_w + style.FramePadding.x * 2
 
-		im.PushID(label == "" ? icon_str(icon, &icon_buf) : label)
-		im.InvisibleButton("##icon_btn", button_size)
+		pos := im.GetCursorScreenPos()
+		im.PushID(id)
+		im.InvisibleButton("##nav", {btn_w, btn_h})
+		im.PopID()
+
 		clicked := im.IsItemClicked() && enabled
-		hovered := im.IsItemHovered() && enabled
-
-		// Draw background on hover
-		if hovered {
-			dl := im.GetWindowDrawList()
-			pos := im.GetItemRectMin()
+		if im.IsItemHovered() && enabled {
 			im.DrawList_AddRectFilled(
 				dl,
 				pos,
-				{pos.x + button_size.x, pos.y + button_size.y},
+				{pos.x + btn_w, pos.y + btn_h},
 				im.GetColorU32(.ButtonHovered),
-				4,
+				3,
 			)
 		}
 
-		// Draw icon
-		text_color := im.GetColorU32(.TextDisabled) if !enabled else im.GetColorU32(.Text)
-		text_pos := im.GetItemRectMin()
-		text_pos.x += 4
-		text_pos.y += 2
-
-		im.PushFont(FONT_ICONS)
-		im.DrawList_AddText(
-			im.GetWindowDrawList(),
-			text_pos,
-			text_color,
+		col := im.GetColorU32(.Text) if enabled else im.GetColorU32(.TextDisabled)
+		icon_pos := im.Vec2{pos.x + style.FramePadding.x, pos.y + (btn_h - NAV_ICON_SIZE) * 0.5}
+		im.DrawList_AddTextImFontPtr(
+			dl,
+			FONT_ICONS,
+			NAV_ICON_SIZE,
+			icon_pos,
+			col,
 			icon_str(icon, &icon_buf),
 		)
-		im.PopFont()
-
-		im.PopID()
 		return clicked
 	}
 
 	im.BeginGroup()
 	defer im.EndGroup()
 
-	// Previous
-	if icon_button_ex(.ChevronLeft, page_info.current_page^ > 1, "prev") {
+	if nav_btn(.ChevronLeft, "prev", page_info.current_page^ > 1) {
 		page_info.current_page^ -= 1
 	}
 
-	im.SameLine()
-	im.PushFont(FONT_REGULAR)
+	im.SameLine(0, 3)
+	im.PushFont(FONT_MEDIUM_SM)
 	im.Text(
 		strings.clone_to_cstring(
 			fmt.tprintf("%d", page_info.current_page^),
@@ -371,11 +388,11 @@ draw_pagination_ctrls :: proc(page_info: PageInfo) {
 	)
 	im.PopFont()
 
-	im.SameLine()
-	im.Text("of")
+	im.SameLine(0, 3)
+	im.TextDisabled("of")
 
-	im.SameLine()
-	im.PushFont(FONT_REGULAR)
+	im.SameLine(0, 3)
+	im.PushFont(FONT_MEDIUM_SM)
 	im.Text(
 		strings.clone_to_cstring(
 			fmt.tprintf("%d", page_info.total_pages^),
@@ -384,8 +401,8 @@ draw_pagination_ctrls :: proc(page_info: PageInfo) {
 	)
 	im.PopFont()
 
-	im.SameLine()
-	if icon_button_ex(.ChevronRight, page_info.current_page^ < page_info.total_pages^, "next") {
+	im.SameLine(0, 3)
+	if nav_btn(.ChevronRight, "next", page_info.current_page^ < page_info.total_pages^) {
 		page_info.current_page^ += 1
 	}
 }

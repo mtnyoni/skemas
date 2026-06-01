@@ -32,6 +32,8 @@ App_State :: struct {
 	db_needs_reload: bool,
 	encoding:        string,
 	read_only:       bool,
+	current_page:    int,
+	total_pages:     int,
 }
 
 SQLITE_NULL :: c.int(5)
