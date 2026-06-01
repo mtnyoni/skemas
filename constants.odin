@@ -2,6 +2,8 @@ package main
 
 import im "vendor/odin-imgui"
 
+APP_VERSION :: #config(APP_VERSION, "dev")
+
 
 COLOR_BACKGROUND := im.Vec4{0.973, 0.98, 0.988, 1}
 COLOR_FOREGROUND := im.Vec4{0.008, 0.024, 0.09, 1.0}
