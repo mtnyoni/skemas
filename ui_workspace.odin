@@ -138,21 +138,88 @@ Workspace_Content :: proc(props: ^Workspace_ContentProps) {
 
 	// Toolbar buttons — inherit shared style, no per-button push/pop needed.
 	style := im.GetStyle()
-	refresh_lbl: cstring = "↻"
-	row_lbl: cstring = "+ Row"
-	refresh_w := im.CalcTextSize(refresh_lbl).x + style.FramePadding.x * 2
-	row_w := im.CalcTextSize(row_lbl).x + style.FramePadding.x * 2
+
+	refresh_buf: [5]u8
+	refresh_s := icon_str(.Refresh, &refresh_buf)
+	plus_buf: [5]u8
+	plus_s := icon_str(.Plus, &plus_buf)
+
+	im.PushFont(FONT_ICONS)
+	icon_native_w := im.CalcTextSize(plus_s).x
+	im.PopFont()
+	plus_icon_w := icon_native_w * (ICON_SIZE / 16.0)
+
+	btn_h := im.GetFrameHeight()
+	refresh_w := ICON_SIZE + style.FramePadding.x * 2
+	row_text_sz := im.CalcTextSize("Row")
+	row_w := plus_icon_w + 4 + row_text_sz.x + style.FramePadding.x * 2
 	right_x :=
 		im.GetWindowWidth() - style.WindowPadding.x - row_w - refresh_w - style.ItemSpacing.x
 
 	im.SameLine()
 	im.Button("Data")
+
+	// Refresh button
 	im.SameLine(right_x)
-	if im.Button(refresh_lbl) {
-		props.prev_selected_table^ = ""
+	{
+		pos := im.GetCursorScreenPos()
+		im.InvisibleButton("##refresh", {refresh_w, btn_h})
+		hovered := im.IsItemHovered()
+		clicked := im.IsItemClicked()
+		if clicked {props.prev_selected_table^ = ""}
+		dl := im.GetWindowDrawList()
+		bg := im.GetColorU32ImVec4(COLOR_MUTED_BACKGROUND if hovered else COLOR_BACKGROUND)
+		im.DrawList_AddRectFilled(dl, pos, {pos.x + refresh_w, pos.y + btn_h}, bg, 4)
+		im.DrawList_AddRect(
+			dl,
+			pos,
+			{pos.x + refresh_w, pos.y + btn_h},
+			im.GetColorU32ImVec4(COLOR_BORDER),
+			4,
+		)
+		im.DrawList_AddTextImFontPtr(
+			dl,
+			FONT_ICONS,
+			ICON_SIZE,
+			{pos.x + style.FramePadding.x, pos.y + (btn_h - ICON_SIZE) * 0.5},
+			im.GetColorU32(.Text),
+			refresh_s,
+		)
 	}
+
+	// + Row button
 	im.SameLine()
-	im.Button(row_lbl)
+	{
+		pos := im.GetCursorScreenPos()
+		im.InvisibleButton("##add_row", {row_w, btn_h})
+
+		hovered := im.IsItemHovered()
+		dl := im.GetWindowDrawList()
+		bg := im.GetColorU32ImVec4(COLOR_MUTED_BACKGROUND if hovered else COLOR_BACKGROUND)
+		im.DrawList_AddRectFilled(dl, pos, {pos.x + row_w, pos.y + btn_h}, bg, 4)
+		im.DrawList_AddRect(
+			dl,
+			pos,
+			{pos.x + row_w, pos.y + btn_h},
+			im.GetColorU32ImVec4(COLOR_BORDER),
+			4,
+		)
+		icon_x := pos.x + style.FramePadding.x
+		im.DrawList_AddTextImFontPtr(
+			dl,
+			FONT_ICONS,
+			ICON_SIZE,
+			{icon_x, pos.y + (btn_h - ICON_SIZE) * 0.5},
+			im.GetColorU32(.Text),
+			plus_s,
+		)
+		im.DrawList_AddText(
+			dl,
+			{icon_x + plus_icon_w + 4, pos.y + (btn_h - row_text_sz.y) * 0.5},
+			im.GetColorU32(.Text),
+			"Row",
+		)
+	}
 
 	im.PopStyleColor(3)
 	im.PopStyleVar(3)

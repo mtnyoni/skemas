@@ -33,11 +33,12 @@ Icon :: enum u32 {
 	List              = 0xF01A, // 61466
 	Bell              = 0xF01B, // 61467
 	Moon              = 0xF01C, // 61468
-	Plus              = 0xF01D, // 61469 - NEW!
+	Plus              = 0xF01D, // 61469
+	ChevronUp         = 0xF01E, // 61470
+	ChevronLeft       = 0xF01F, // 61471
 }
 
-// Encodes an Icon codepoint as a null-terminated UTF-8 cstring into buf.
-// buf must be at least 5 bytes. Lifetime is tied to buf.
+
 icon_str :: proc(icon: Icon, buf: ^[5]u8) -> cstring {
 	bytes, n := utf8.encode_rune(rune(icon))
 	copy(buf[:4], bytes[:n])
@@ -45,8 +46,7 @@ icon_str :: proc(icon: Icon, buf: ^[5]u8) -> cstring {
 	return cstring(&buf[0])
 }
 
-// Render size for icons. The atlas is built at 16px for quality; we draw
-// at this smaller size so the glyphs don't overpower the text beside them.
+
 ICON_SIZE :: f32(14.0)
 
 // Font handles
@@ -81,7 +81,7 @@ load_fonts :: proc(io: ^im.IO, dpi_scale: f32) {
 		16.0 * dpi_scale,
 	)
 
-	@(static) icon_ranges := [?]im.Wchar{0xF000, 0xF01D, 0}
+	@(static) icon_ranges := [?]im.Wchar{0xF000, 0xF01F, 0}
 	FONT_ICONS = im.FontAtlas_AddFontFromFileTTF(
 		io.Fonts,
 		"fonts/icons.ttf",

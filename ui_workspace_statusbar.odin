@@ -101,22 +101,27 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 		im.PopFont()
 	}
 
-	readonly_lbl := strings.clone_to_cstring(
-		"Read-only On" if props.state.read_only else "Read-only Off",
-		context.temp_allocator,
-	)
+	readonly_lbl: cstring = "Read-only On" if props.state.read_only else "Read-only Off"
 	encoding_type_lbl := strings.clone_to_cstring(
 		props.state.encoding if props.state.encoding != "" else "UTF8",
 		context.temp_allocator,
 	)
-	pages_lbl: cstring = "< 1-14 >"
 
+	pages_lbl: cstring = "< 1-14 >"
 	readonly_w := im.CalcTextSize(readonly_lbl).x
 	encoding_type_w := im.CalcTextSize(encoding_type_lbl).x
 	pages_w := im.CalcTextSize(pages_lbl).x
 	sep_w: f32 = 1.0 + style.ItemSpacing.x * 2
 
-	right_total_w := pages_w + sep_w + encoding_type_w + sep_w + readonly_w
+	BELL_ICON_SIZE :: f32(15.0)
+
+	bell_buf: [5]u8
+	bell_lbl := icon_str(.Bell, &bell_buf)
+	im.PushFont(FONT_ICONS)
+	bell_w := im.CalcTextSize(bell_lbl).x * (BELL_ICON_SIZE / 16.0)
+	im.PopFont()
+
+	right_total_w := pages_w + sep_w + encoding_type_w + sep_w + readonly_w + sep_w + bell_w
 	right_start := props.display_w - style.WindowPadding.x - right_total_w
 
 	im.SameLine(right_start)
@@ -136,6 +141,24 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 	im.SameLine()
 	im.SetCursorPosY(center_y)
 	im.TextDisabled(readonly_lbl)
+
+	im.SameLine()
+	vertical_separator(draw_list, win_pos, sep_color)
+
+	im.SameLine()
+	bell_pos := im.Vec2 {
+		im.GetCursorScreenPos().x,
+		win_pos.y + (WORKSPACE_STATUS_BAR_H - BELL_ICON_SIZE) * 0.5,
+	}
+	im.DrawList_AddTextImFontPtr(
+		draw_list,
+		FONT_ICONS,
+		BELL_ICON_SIZE,
+		bell_pos,
+		im.GetColorU32ImVec4(COLOR_MUTED_FOREGROUND),
+		bell_lbl,
+	)
+	im.Dummy({bell_w, 0})
 }
 
 connection_status_text :: proc(
@@ -275,4 +298,94 @@ draw_status_indicator :: proc(
 		im.GetColorU32ImVec4(inner_color),
 		0,
 	)
+}
+
+
+PageInfo :: struct {
+	current_page: ^int,
+	total_pages:  ^int,
+}
+
+draw_pagination_ctrls :: proc(page_info: PageInfo) {
+	icon_button_ex :: proc(icon: Icon, enabled: bool, label: cstring = "") -> bool {
+		im.PushFont(FONT_ICONS)
+
+		icon_buf: [5]u8
+		icon_size := im.CalcTextSize(icon_str(icon, &icon_buf))
+		im.PopFont()
+
+		button_size := im.Vec2{icon_size.x + 8, icon_size.y + 4}
+
+		im.PushID(label == "" ? icon_str(icon, &icon_buf) : label)
+		im.InvisibleButton("##icon_btn", button_size)
+		clicked := im.IsItemClicked() && enabled
+		hovered := im.IsItemHovered() && enabled
+
+		// Draw background on hover
+		if hovered {
+			dl := im.GetWindowDrawList()
+			pos := im.GetItemRectMin()
+			im.DrawList_AddRectFilled(
+				dl,
+				pos,
+				{pos.x + button_size.x, pos.y + button_size.y},
+				im.GetColorU32(.ButtonHovered),
+				4,
+			)
+		}
+
+		// Draw icon
+		text_color := im.GetColorU32(.TextDisabled) if !enabled else im.GetColorU32(.Text)
+		text_pos := im.GetItemRectMin()
+		text_pos.x += 4
+		text_pos.y += 2
+
+		im.PushFont(FONT_ICONS)
+		im.DrawList_AddText(
+			im.GetWindowDrawList(),
+			text_pos,
+			text_color,
+			icon_str(icon, &icon_buf),
+		)
+		im.PopFont()
+
+		im.PopID()
+		return clicked
+	}
+
+	im.BeginGroup()
+	defer im.EndGroup()
+
+	// Previous
+	if icon_button_ex(.ChevronLeft, page_info.current_page^ > 1, "prev") {
+		page_info.current_page^ -= 1
+	}
+
+	im.SameLine()
+	im.PushFont(FONT_REGULAR)
+	im.Text(
+		strings.clone_to_cstring(
+			fmt.tprintf("%d", page_info.current_page^),
+			context.temp_allocator,
+		),
+	)
+	im.PopFont()
+
+	im.SameLine()
+	im.Text("of")
+
+	im.SameLine()
+	im.PushFont(FONT_REGULAR)
+	im.Text(
+		strings.clone_to_cstring(
+			fmt.tprintf("%d", page_info.total_pages^),
+			context.temp_allocator,
+		),
+	)
+	im.PopFont()
+
+	im.SameLine()
+	if icon_button_ex(.ChevronRight, page_info.current_page^ < page_info.total_pages^, "next") {
+		page_info.current_page^ += 1
+	}
 }
