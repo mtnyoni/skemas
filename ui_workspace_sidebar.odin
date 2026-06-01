@@ -142,12 +142,14 @@ Workspace_Sidebar :: proc(props: Workspace_SidebarProps) {
 			},
 		)
 
-		draw_db_schema_dropdown(
-			props.loaded_dbs^,
-			props.loaded_schemas^,
-			props.selected_db,
-			props.selected_schema,
-		)
+		if _, ok := props.state.conn.(PQ_Conn); ok {
+			draw_db_schema_dropdown(
+				props.loaded_dbs^,
+				props.loaded_schemas^,
+				props.selected_db,
+				props.selected_schema,
+			)
+		}
 
 		im.Spacing()
 		im.PushFont(FONT_REGULAR)
@@ -305,7 +307,7 @@ draw_db_schema_dropdown :: proc(
 	im.PopStyleColor(4)
 	im.PopStyleVar(3)
 
-	im.SetNextWindowSize({600, 280}, .Appearing)
+	im.SetNextWindowSize({600, 280}, .Always)
 	im.PushStyleVarImVec2(.WindowPadding, {12, 12})
 
 	if im.BeginPopup(DB_SCHEMA_POPUP_NAME) {
@@ -316,9 +318,7 @@ draw_db_schema_dropdown :: proc(
 		}
 
 		im.Columns(2, "##db_schema_cols", true)
-		if im.GetColumnWidth(0) == 0 {
-			im.SetColumnWidth(0, 180)
-		}
+		im.SetColumnWidth(0, 200)
 
 		im.TextDisabled("DATABASES")
 		im.Separator()
