@@ -182,9 +182,11 @@ Workspace_Content :: proc(props: ^Workspace_ContentProps) {
 		GAP :: f32(3)
 		ROUNDING :: f32(4)
 
+		icon_buf: [5]u8
+		icon_s := icon_str(.Filter, &icon_buf)
 		im.PushFont(FONT_ICONS)
-		icon_w := im.CalcTextSize(ICON_PLUS).x
-		icon_h := im.CalcTextSize(ICON_PLUS).y
+		icon_w := im.CalcTextSize(icon_s).x
+		icon_h := im.CalcTextSize(icon_s).y
 		im.PopFont()
 		label_sz := im.CalcTextSize("Filter")
 
@@ -242,7 +244,7 @@ Workspace_Content :: proc(props: ^Workspace_ContentProps) {
 			0,
 			{x1 + PAD_X, y1 + (btn_h - icon_h) * 0.5},
 			text_color,
-			ICON_PLUS,
+			icon_s,
 		)
 		im.DrawList_AddText(
 			dl,

@@ -328,7 +328,24 @@ Connection_Form :: proc(props: Connection_FormProps) {
 	im.Spacing()
 	im.Text("Database Type")
 	im.SetNextItemWidth(-1)
-	if im.BeginCombo("##db_type", db_type_labels[props.db_type^]) {
+	db_type_combo := im.BeginCombo("##db_type", db_type_labels[props.db_type^], {.NoArrowButton})
+	{
+		item_min := im.GetItemRectMin()
+		item_max := im.GetItemRectMax()
+		frame_h := im.GetFrameHeight()
+		padding := im.GetStyle().FramePadding
+		chevron_buf: [5]u8
+		im.DrawList_AddTextImFontPtr(
+			im.GetWindowDrawList(),
+			FONT_ICONS,
+			0,
+			{item_max.x - frame_h + padding.x, item_min.y + padding.y},
+			im.GetColorU32ImVec4(COLOR_MUTED_FOREGROUND),
+			icon_str(.ChevronDown, &chevron_buf),
+		)
+	}
+
+	if db_type_combo {
 		for label, t in db_type_labels {
 			if im.Selectable(label, props.db_type^ == t) {
 				props.db_type^ = t

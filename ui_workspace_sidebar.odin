@@ -221,6 +221,7 @@ Workspace_Sidebar :: proc(props: Workspace_SidebarProps) {
 		im.TextUnformatted(sq_count_lbl)
 		im.PopStyleColor()
 		im.PopFont()
+
 		im.BeginChild("##tables_list", {-1, -1}, {.Borders})
 		for tbl in props.loaded_tables^ {
 			cname := strings.clone_to_cstring(tbl)
@@ -291,13 +292,14 @@ draw_db_schema_dropdown :: proc(
 		item_max := im.GetItemRectMax()
 		frame_h := im.GetFrameHeight()
 		padding := im.GetStyle().FramePadding
+		chevron_buf: [5]u8
 		im.DrawList_AddTextImFontPtr(
 			im.GetWindowDrawList(),
 			FONT_ICONS,
 			0,
 			{item_max.x - frame_h + padding.x, item_min.y + padding.y},
-			im.GetColorU32(.Text),
-			ICON_ANGLE_DOWN,
+			im.GetColorU32ImVec4(COLOR_MUTED_FOREGROUND),
+			icon_str(.ChevronDown, &chevron_buf),
 		)
 	}
 	im.PopStyleColor(4)
@@ -305,7 +307,6 @@ draw_db_schema_dropdown :: proc(
 
 	im.SetNextWindowSize({600, 280}, .Appearing)
 	im.PushStyleVarImVec2(.WindowPadding, {12, 12})
-	// Removed the defer statement from here
 
 	if im.BeginPopup(DB_SCHEMA_POPUP_NAME) {
 		im.PopStyleVar() // Pop it right here as soon as the popup context successfully initializes
@@ -340,7 +341,6 @@ draw_db_schema_dropdown :: proc(
 		}
 
 		im.NextColumn()
-
 		active_schemas := loaded_schemas if hovered_db == selected_db^ else []string{}
 
 		schema_title := fmt.tprintf("%d SCHEMAS", len(active_schemas))
@@ -426,15 +426,17 @@ DB_Servers_Select :: proc(props: DB_Servers_SelectProps) {
 		item_max := im.GetItemRectMax()
 		frame_h := im.GetFrameHeight()
 		padding := im.GetStyle().FramePadding
+		chevron_buf: [5]u8
 		im.DrawList_AddTextImFontPtr(
 			im.GetWindowDrawList(),
 			FONT_ICONS,
 			0,
 			{item_max.x - frame_h + padding.x, item_min.y + padding.y},
-			im.GetColorU32(.Text),
-			ICON_ANGLE_DOWN,
+			im.GetColorU32ImVec4(COLOR_MUTED_FOREGROUND),
+			icon_str(.ChevronDown, &chevron_buf),
 		)
 	}
+
 	if combo_open {
 		for conn in connections {
 			cname := strings.clone_to_cstring(conn.name, context.temp_allocator)
@@ -484,6 +486,7 @@ DB_Servers_Select :: proc(props: DB_Servers_SelectProps) {
 					} else {
 						props.state.conn_status = .Disconnected
 					}
+
 				case .SQLite:
 					sq_conn, err := sqlite_connect(params)
 					if err == nil {
@@ -496,6 +499,7 @@ DB_Servers_Select :: proc(props: DB_Servers_SelectProps) {
 				}
 			}
 		}
+
 		im.EndCombo()
 	}
 }
