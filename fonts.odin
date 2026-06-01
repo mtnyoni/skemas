@@ -45,6 +45,10 @@ icon_str :: proc(icon: Icon, buf: ^[5]u8) -> cstring {
 	return cstring(&buf[0])
 }
 
+// Render size for icons. The atlas is built at 16px for quality; we draw
+// at this smaller size so the glyphs don't overpower the text beside them.
+ICON_SIZE :: f32(14.0)
+
 // Font handles
 FONT_REGULAR_SM: ^im.Font
 FONT_REGULAR: ^im.Font

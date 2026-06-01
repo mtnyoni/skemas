@@ -185,9 +185,11 @@ Workspace_Content :: proc(props: ^Workspace_ContentProps) {
 		icon_buf: [5]u8
 		icon_s := icon_str(.Filter, &icon_buf)
 		im.PushFont(FONT_ICONS)
-		icon_w := im.CalcTextSize(icon_s).x
-		icon_h := im.CalcTextSize(icon_s).y
+		native := im.CalcTextSize(icon_s)
 		im.PopFont()
+		scale := ICON_SIZE / 16.0
+		icon_w := native.x * scale
+		icon_h := native.y * scale
 		label_sz := im.CalcTextSize("Filter")
 
 		btn_w := PAD_X * 2 + icon_w + SPACING + label_sz.x
@@ -241,7 +243,7 @@ Workspace_Content :: proc(props: ^Workspace_ContentProps) {
 		im.DrawList_AddTextImFontPtr(
 			dl,
 			FONT_ICONS,
-			0,
+			ICON_SIZE,
 			{x1 + PAD_X, y1 + (btn_h - icon_h) * 0.5},
 			text_color,
 			icon_s,

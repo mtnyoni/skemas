@@ -296,7 +296,7 @@ draw_db_schema_dropdown :: proc(
 		im.DrawList_AddTextImFontPtr(
 			im.GetWindowDrawList(),
 			FONT_ICONS,
-			0,
+			ICON_SIZE,
 			{item_max.x - frame_h + padding.x, item_min.y + padding.y},
 			im.GetColorU32ImVec4(COLOR_MUTED_FOREGROUND),
 			icon_str(.ChevronDown, &chevron_buf),
@@ -430,7 +430,7 @@ DB_Servers_Select :: proc(props: DB_Servers_SelectProps) {
 		im.DrawList_AddTextImFontPtr(
 			im.GetWindowDrawList(),
 			FONT_ICONS,
-			0,
+			ICON_SIZE,
 			{item_max.x - frame_h + padding.x, item_min.y + padding.y},
 			im.GetColorU32ImVec4(COLOR_MUTED_FOREGROUND),
 			icon_str(.ChevronDown, &chevron_buf),
