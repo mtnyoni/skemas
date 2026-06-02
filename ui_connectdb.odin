@@ -220,7 +220,7 @@ Delete_Dialog :: proc(props: Delete_DialogProps) {
 		defer im.EndPopup()
 
 		del_name_c := strings.clone_to_cstring(props.pending_delete.name, context.temp_allocator)
-		im.PushFont(FONT_MEDIUM)
+		im.PushFontFloat(FONT_MEDIUM, FONT_SIZE_BASE)
 		im.Text("Delete connection?")
 		im.PopFont()
 
@@ -326,7 +326,7 @@ Connection_Form :: proc(props: Connection_FormProps) {
 	}
 
 	im.Spacing()
-	im.PushFont(FONT_REGULAR_SM)
+	im.PushFontFloat(FONT_REGULAR, FONT_SIZE_SM)
 	im.TextDisabled("Database Type")
 	im.PopFont()
 	im.SetNextItemWidth(-1)
@@ -359,7 +359,7 @@ Connection_Form :: proc(props: Connection_FormProps) {
 	#partial switch props.db_type^ {
 	case .SQLite:
 		im.Spacing()
-		im.PushFont(FONT_REGULAR_SM)
+		im.PushFontFloat(FONT_REGULAR, FONT_SIZE_SM)
 		im.TextDisabled("Path")
 		im.PopFont()
 		browse_lbl: cstring = "Browse..."
@@ -380,28 +380,28 @@ Connection_Form :: proc(props: Connection_FormProps) {
 
 	case .Postgres:
 		im.Spacing()
-		im.PushFont(FONT_REGULAR_SM)
+		im.PushFontFloat(FONT_REGULAR, FONT_SIZE_SM)
 		im.TextDisabled("Host")
 		im.PopFont()
 		im.SetNextItemWidth(-1)
 		im.InputText("##host", cast(cstring)&props.host_buf[0], len(props.host_buf))
 
 		im.Spacing()
-		im.PushFont(FONT_REGULAR_SM)
+		im.PushFontFloat(FONT_REGULAR, FONT_SIZE_SM)
 		im.TextDisabled("Port")
 		im.PopFont()
 		im.SetNextItemWidth(-1)
 		im.InputInt("##port", props.port, 0, 0)
 
 		im.Spacing()
-		im.PushFont(FONT_REGULAR_SM)
+		im.PushFontFloat(FONT_REGULAR, FONT_SIZE_SM)
 		im.TextDisabled("Username")
 		im.PopFont()
 		im.SetNextItemWidth(-1)
 		im.InputText("##username", cast(cstring)&props.username_buf[0], len(props.username_buf))
 
 		im.Spacing()
-		im.PushFont(FONT_REGULAR_SM)
+		im.PushFontFloat(FONT_REGULAR, FONT_SIZE_SM)
 		im.TextDisabled("Password")
 		im.PopFont()
 		im.SetNextItemWidth(-1)

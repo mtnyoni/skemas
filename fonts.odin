@@ -47,52 +47,34 @@ icon_str :: proc(icon: Icon, buf: ^[5]u8) -> cstring {
 }
 
 
-ICON_SIZE :: f32(14.0)
+FONT_SIZE_XS   :: f32(13.0)
+FONT_SIZE_SM   :: f32(15.0)
+FONT_SIZE_BASE :: f32(16.0)
+ICON_SIZE      :: f32(14.0)
 
-// Font handles
-FONT_REGULAR_XS: ^im.Font
-FONT_REGULAR_SM: ^im.Font
+// Font handles — one per typeface, size passed at push time via PushFontFloat
 FONT_REGULAR: ^im.Font
-FONT_MEDIUM_SM: ^im.Font
-FONT_MEDIUM: ^im.Font
-FONT_ICONS: ^im.Font
+FONT_MEDIUM:  ^im.Font
+FONT_ICONS:   ^im.Font
 
 load_fonts :: proc(io: ^im.IO, dpi_scale: f32) {
 	FONT_REGULAR = im.FontAtlas_AddFontFromFileTTF(
 		io.Fonts,
 		"fonts/Inter_18pt-Regular.ttf",
-		16.0 * dpi_scale,
-	)
-
-	FONT_REGULAR_XS = im.FontAtlas_AddFontFromFileTTF(
-		io.Fonts,
-		"fonts/Inter_18pt-Regular.ttf",
-		13.0 * dpi_scale,
-	)
-
-	FONT_REGULAR_SM = im.FontAtlas_AddFontFromFileTTF(
-		io.Fonts,
-		"fonts/Inter_18pt-Regular.ttf",
-		15.0 * dpi_scale,
-	)
-
-	FONT_MEDIUM_SM = im.FontAtlas_AddFontFromFileTTF(
-		io.Fonts,
-		"fonts/Inter_18pt-Medium.ttf",
-		13.0 * dpi_scale,
+		FONT_SIZE_BASE * dpi_scale,
 	)
 
 	FONT_MEDIUM = im.FontAtlas_AddFontFromFileTTF(
 		io.Fonts,
 		"fonts/Inter_18pt-Medium.ttf",
-		16.0 * dpi_scale,
+		FONT_SIZE_BASE * dpi_scale,
 	)
 
 	@(static) icon_ranges := [?]im.Wchar{0xF000, 0xF01F, 0}
 	FONT_ICONS = im.FontAtlas_AddFontFromFileTTF(
 		io.Fonts,
 		"fonts/icons.ttf",
-		16.0 * dpi_scale,
+		FONT_SIZE_BASE * dpi_scale,
 		nil,
 		&icon_ranges[0],
 	)

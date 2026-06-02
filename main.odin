@@ -5,13 +5,13 @@ import "core:mem"
 import "core:thread"
 import "core:time"
 import im "vendor/odin-imgui"
-import "vendor/odin-imgui/imgui_impl_sdl2"
-import imgui_sql_renderer "vendor/odin-imgui/imgui_impl_sdlrenderer2"
+import imgui_impl_sdl3 "vendor/odin-imgui/imgui_impl_sdl3"
+import imgui_sql_renderer "vendor/odin-imgui/imgui_impl_sdlrenderer3"
 import pq "vendor/odin-postgresql"
 import sqlite "vendor/odin-sqlite3"
 
-import sdl "vendor:sdl2"
-import img "vendor:sdl2/image"
+import sdl "vendor:sdl3"
+import img "vendor:sdl3/image"
 
 apply_style :: proc(style: ^im.Style, base: im.Style, dpi_scale: f32) {
 	style^ = base
@@ -37,56 +37,30 @@ main :: proc() {
 	context.allocator = mem.tracking_allocator(&track)
 	defer mem.tracking_allocator_destroy(&track)
 
-	assert(sdl.Init(sdl.INIT_EVERYTHING) == 0)
+	assert(sdl.Init(sdl.INIT_VIDEO))
 	defer sdl.Quit()
 
-	window := sdl.CreateWindow(
-		"Skemas",
-		sdl.WINDOWPOS_CENTERED,
-		sdl.WINDOWPOS_CENTERED,
-		1280,
-		720,
-		{.RESIZABLE, .ALLOW_HIGHDPI},
-	)
+	window := sdl.CreateWindow("Skemas", 1280, 720, {.RESIZABLE, .HIGH_PIXEL_DENSITY})
 	assert(window != nil)
 	defer sdl.DestroyWindow(window)
-
-	if img.Init({.PNG}) == {} {
-		panic("Failed to initialize SDL_image")
-	}
-	defer img.Quit()
 
 	{
 		icon := img.Load("assets/s.png")
 		if icon != nil {
-			defer sdl.FreeSurface(icon)
+			defer sdl.DestroySurface(icon)
 			sdl.SetWindowIcon(window, icon)
 		}
 	}
 
-	renderer := sdl.CreateRenderer(window, -1, {.PRESENTVSYNC, .ACCELERATED})
+	renderer := sdl.CreateRenderer(window, nil)
 	assert(renderer != nil)
 	defer sdl.DestroyRenderer(renderer)
+	sdl.SetRenderVSync(renderer, 1)
 
 	im.CreateContext()
 	defer im.DestroyContext()
 
-	w, h: i32
-	sdl.GetWindowSize(window, &w, &h)
-	drawable_w, drawable_h: i32
-	sdl.GetRendererOutputSize(renderer, &drawable_w, &drawable_h)
-
-	dpi_scale := f32(drawable_w) / f32(w)
-	// On Linux X11, SDL2 always reports pixel_ratio = 1.0 because the
-	// compositor applies scaling below SDL2's level. Use the physical display
-	// DPI to derive the true scale factor so fonts match other DPI-aware apps.
-	if dpi_scale == 1.0 {
-		ddpi, hdpi, vdpi: f32
-		display_idx := sdl.GetWindowDisplayIndex(window)
-		if sdl.GetDisplayDPI(display_idx, &ddpi, &hdpi, &vdpi) == 0 && hdpi > 0 {
-			dpi_scale = max(dpi_scale, hdpi / 96.0)
-		}
-	}
+	dpi_scale := sdl.GetWindowDisplayScale(window)
 
 	io := im.GetIO()
 	load_fonts(io, dpi_scale)
@@ -95,13 +69,11 @@ main :: proc() {
 	im.StyleColorsLight()
 	style := im.GetStyle()
 
-	// Save unscaled base style (light colors, default sizes) so we can
-	// restore it cleanly when the display DPI changes.
 	base_style := style^
 	apply_style(style, base_style, dpi_scale)
 
-	imgui_impl_sdl2.InitForSDLRenderer(window, renderer)
-	defer imgui_impl_sdl2.Shutdown()
+	imgui_impl_sdl3.InitForSDLRenderer(window, renderer)
+	defer imgui_impl_sdl3.Shutdown()
 
 	imgui_sql_renderer.Init(renderer)
 	defer imgui_sql_renderer.Shutdown()
@@ -142,7 +114,7 @@ main :: proc() {
 		e: sdl.Event
 
 		for sdl.PollEvent(&e) {
-			imgui_impl_sdl2.ProcessEvent(&e)
+			imgui_impl_sdl3.ProcessEvent(&e)
 
 			#partial switch e.type {
 			case .QUIT:
@@ -166,7 +138,6 @@ main :: proc() {
 			}
 
 		} else if prev_pg_conn != nil {
-			// Connection was just dropped — clean up.
 			if health_thread != nil {
 				thread.join(health_thread)
 				thread.destroy(health_thread)
@@ -178,35 +149,17 @@ main :: proc() {
 			prev_pg_conn = nil
 		}
 
-		// Detect display DPI change (e.g. moving to a different monitor or
-		// changing the system scale factor) and rebuild fonts + style.
-		{
-			cur_w, cur_h: i32
-			cur_dw, cur_dh: i32
-			sdl.GetWindowSize(window, &cur_w, &cur_h)
-			sdl.GetRendererOutputSize(renderer, &cur_dw, &cur_dh)
-			if cur_w > 0 {
-				new_dpi := f32(cur_dw) / f32(cur_w)
-				if new_dpi == 1.0 {
-					ddpi, hdpi, vdpi: f32
-					display_idx := sdl.GetWindowDisplayIndex(window)
-					if sdl.GetDisplayDPI(display_idx, &ddpi, &hdpi, &vdpi) == 0 && hdpi > 0 {
-						new_dpi = max(new_dpi, hdpi / 96.0)
-					}
-				}
-				if new_dpi != dpi_scale {
-					dpi_scale = new_dpi
-					imgui_sql_renderer.DestroyFontsTexture()
-					im.FontAtlas_Clear(io.Fonts)
-					load_fonts(io, dpi_scale)
-					imgui_sql_renderer.CreateFontsTexture()
-					apply_style(style, base_style, dpi_scale)
-				}
-			}
+		// Detect display scale change (monitor switch, system scale factor change).
+		new_dpi := sdl.GetWindowDisplayScale(window)
+		if new_dpi != dpi_scale {
+			dpi_scale = new_dpi
+			im.FontAtlas_Clear(io.Fonts)
+			load_fonts(io, dpi_scale)
+			apply_style(style, base_style, dpi_scale)
 		}
 
 		imgui_sql_renderer.NewFrame()
-		imgui_impl_sdl2.NewFrame()
+		imgui_impl_sdl3.NewFrame()
 		im.NewFrame()
 
 		switch state.screen {

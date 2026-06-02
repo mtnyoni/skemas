@@ -29,7 +29,7 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 	)
 	defer im.End()
 
-	im.PushFont(FONT_REGULAR_XS)
+	im.PushFontFloat(FONT_REGULAR, FONT_SIZE_XS)
 	defer im.PopFont()
 
 	draw_list := im.GetWindowDrawList()
@@ -79,7 +79,7 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 
 	im.SameLine()
 	im.SetCursorPosY(center_y)
-	im.PushFont(FONT_MEDIUM_SM)
+	im.PushFontFloat(FONT_MEDIUM, FONT_SIZE_XS)
 	im.Text("1")
 	im.PopFont()
 	im.SameLine(0, 3)
@@ -97,7 +97,7 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 		im.SetCursorPosY(center_y)
 		im.TextDisabled("Query")
 		im.SameLine()
-		im.PushFont(FONT_MEDIUM_SM)
+		im.PushFontFloat(FONT_MEDIUM, FONT_SIZE_XS)
 		im.Text(s)
 		im.PopFont()
 	}
@@ -120,15 +120,15 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 		fmt.tprintf("%d", props.page_info.total_pages^),
 		context.temp_allocator,
 	)
-	im.PushFont(FONT_MEDIUM_SM)
+	im.PushFontFloat(FONT_MEDIUM, FONT_SIZE_XS)
 	cur_page_w := im.CalcTextSize(cur_page_lbl).x
 	total_pages_w_val := im.CalcTextSize(total_pages_lbl).x
 	im.PopFont()
 	of_w := im.CalcTextSize("of").x
 	NAV_ICON_SIZE :: f32(11.0)
 	chevron_buf: [5]u8
-	im.PushFont(FONT_ICONS)
-	nav_icon_w := im.CalcTextSize(icon_str(.ChevronRight, &chevron_buf)).x * (NAV_ICON_SIZE / 16.0)
+	im.PushFontFloat(FONT_ICONS, NAV_ICON_SIZE)
+	nav_icon_w := im.CalcTextSize(icon_str(.ChevronRight, &chevron_buf)).x
 	im.PopFont()
 	nav_btn_w := nav_icon_w + style.FramePadding.x * 2
 	pages_w := nav_btn_w + 4 + cur_page_w + 3 + of_w + 3 + total_pages_w_val + 4 + nav_btn_w
@@ -137,8 +137,8 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 
 	bell_buf: [5]u8
 	bell_lbl := icon_str(.Bell, &bell_buf)
-	im.PushFont(FONT_ICONS)
-	bell_w := im.CalcTextSize(bell_lbl).x * (BELL_ICON_SIZE / 16.0)
+	im.PushFontFloat(FONT_ICONS, BELL_ICON_SIZE)
+	bell_w := im.CalcTextSize(bell_lbl).x
 	im.PopFont()
 
 	right_total_w := pages_w + sep_w + encoding_type_w + sep_w + readonly_w + sep_w + bell_w
@@ -269,13 +269,13 @@ connection_status_text :: proc(
 }
 
 number_of_rows_text :: proc(count: int, total_rows: int) {
-	im.PushFont(FONT_MEDIUM_SM)
+	im.PushFontFloat(FONT_MEDIUM, FONT_SIZE_XS)
 	im.Text(strings.clone_to_cstring(fmt.tprintf("%d", count), context.temp_allocator))
 	im.PopFont()
 	im.SameLine(0, 3)
 	im.TextDisabled("of")
 	im.SameLine(0, 3)
-	im.PushFont(FONT_MEDIUM_SM)
+	im.PushFontFloat(FONT_MEDIUM, FONT_SIZE_XS)
 	im.Text(strings.clone_to_cstring(fmt.tprintf("%d", total_rows), context.temp_allocator))
 	im.PopFont()
 	im.SameLine(0, 3)
@@ -334,12 +334,10 @@ draw_pagination_ctrls :: proc(page_info: PageInfo) {
 		dl := im.GetWindowDrawList()
 		btn_h := im.GetTextLineHeight()
 
-		im.PushFont(FONT_ICONS)
 		icon_buf: [5]u8
-		native_w := im.CalcTextSize(icon_str(icon, &icon_buf)).x
+		im.PushFontFloat(FONT_ICONS, NAV_ICON_SIZE)
+		icon_w := im.CalcTextSize(icon_str(icon, &icon_buf)).x
 		im.PopFont()
-
-		icon_w := native_w * (NAV_ICON_SIZE / 16.0)
 		btn_w := icon_w + style.FramePadding.x * 2
 
 		pos := im.GetCursorScreenPos()
@@ -379,7 +377,7 @@ draw_pagination_ctrls :: proc(page_info: PageInfo) {
 	}
 
 	im.SameLine(0, 3)
-	im.PushFont(FONT_MEDIUM_SM)
+	im.PushFontFloat(FONT_MEDIUM, FONT_SIZE_XS)
 	im.Text(
 		strings.clone_to_cstring(
 			fmt.tprintf("%d", page_info.current_page^),
@@ -392,7 +390,7 @@ draw_pagination_ctrls :: proc(page_info: PageInfo) {
 	im.TextDisabled("of")
 
 	im.SameLine(0, 3)
-	im.PushFont(FONT_MEDIUM_SM)
+	im.PushFontFloat(FONT_MEDIUM, FONT_SIZE_XS)
 	im.Text(
 		strings.clone_to_cstring(
 			fmt.tprintf("%d", page_info.total_pages^),

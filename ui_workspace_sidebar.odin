@@ -188,11 +188,11 @@ Workspace_Sidebar :: proc(props: Workspace_SidebarProps) {
 		)
 
 		im.Spacing()
-		im.PushFont(FONT_REGULAR)
+		im.PushFontFloat(FONT_REGULAR, FONT_SIZE_BASE)
 		im.TextDisabled("Tables")
 		im.PopFont()
 
-		im.PushFont(FONT_REGULAR_XS)
+		im.PushFontFloat(FONT_REGULAR, FONT_SIZE_XS)
 		count_lbl := strings.clone_to_cstring(
 			fmt.tprintf("%d", len(props.loaded_tables^)),
 			context.temp_allocator,
@@ -218,7 +218,7 @@ Workspace_Sidebar :: proc(props: Workspace_SidebarProps) {
 		im.EndChild()
 
 	case SQLite_Conn:
-		im.PushFont(FONT_REGULAR)
+		im.PushFontFloat(FONT_REGULAR, FONT_SIZE_BASE)
 		im.TextDisabled("Tables")
 		im.PopFont()
 
@@ -228,7 +228,7 @@ Workspace_Sidebar :: proc(props: Workspace_SidebarProps) {
 		)
 		sq_count_w := im.CalcTextSize(sq_count_lbl).x
 		im.SameLine(im.GetWindowWidth() - im.GetStyle().WindowPadding.x - sq_count_w)
-		im.PushFont(FONT_REGULAR_XS)
+		im.PushFontFloat(FONT_REGULAR, FONT_SIZE_XS)
 		im.PushStyleColorImVec4(.Text, COLOR_MUTED_FOREGROUND)
 		im.TextUnformatted(sq_count_lbl)
 		im.PopStyleColor()
@@ -247,7 +247,7 @@ Workspace_Sidebar :: proc(props: Workspace_SidebarProps) {
 					fmt.tprintf("%d", len(props.query_result^.rows)),
 					context.temp_allocator,
 				)
-				im.PushFont(FONT_REGULAR_XS)
+				im.PushFontFloat(FONT_REGULAR, FONT_SIZE_XS)
 				row_count_w := im.CalcTextSize(row_count_lbl).x
 				im.SameLine(im.GetWindowWidth() - im.GetStyle().WindowPadding.x * 2 - row_count_w)
 				im.PushStyleColorImVec4(.Text, COLOR_MUTED_FOREGROUND)

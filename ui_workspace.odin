@@ -110,7 +110,7 @@ Workspace_Content :: proc(props: ^Workspace_ContentProps) {
 	im.AlignTextToFramePadding()
 
 	// Breadcrumb
-	im.PushFont(FONT_REGULAR_XS)
+	im.PushFontFloat(FONT_REGULAR, FONT_SIZE_XS)
 	im.PushStyleColorImVec4(.Text, COLOR_MUTED_FOREGROUND)
 	if props.selected_db^ != "" {
 		db_c := strings.clone_to_cstring(props.selected_db^)
@@ -128,7 +128,7 @@ Workspace_Content :: proc(props: ^Workspace_ContentProps) {
 	im.PopStyleColor()
 	im.PopFont()
 
-	im.PushFont(FONT_MEDIUM_SM)
+	im.PushFontFloat(FONT_MEDIUM, FONT_SIZE_XS)
 	if props.selected_table^ != "" {
 		if props.selected_db^ != "" || props.selected_schema^ != "" {
 			im.SameLine()
@@ -149,10 +149,9 @@ Workspace_Content :: proc(props: ^Workspace_ContentProps) {
 	plus_buf: [5]u8
 	plus_s := icon_str(.Plus, &plus_buf)
 
-	im.PushFont(FONT_ICONS)
-	icon_native_w := im.CalcTextSize(plus_s).x
+	im.PushFontFloat(FONT_ICONS, ICON_SIZE)
+	plus_icon_w := im.CalcTextSize(plus_s).x
 	im.PopFont()
-	plus_icon_w := icon_native_w * (ICON_SIZE / 16.0)
 
 	btn_h := im.GetFrameHeight()
 	refresh_w := ICON_SIZE + style.FramePadding.x * 2
@@ -285,7 +284,7 @@ Workspace_Content :: proc(props: ^Workspace_ContentProps) {
 				im.TableSetupColumn(cheader)
 			}
 
-			im.PushFont(FONT_MEDIUM)
+			im.PushFontFloat(FONT_MEDIUM, FONT_SIZE_BASE)
 			im.PushStyleColorImVec4(.TableHeaderBg, COLOR_MUTED_BACKGROUND)
 			im.PushStyleColorImVec4(.Text, COLOR_MUTED_FOREGROUND)
 			im.TableNextRow({.Headers})
@@ -325,7 +324,7 @@ draw_filter_button :: proc() {
 
 	icon_buf: [5]u8
 	icon_s := icon_str(.Filter, &icon_buf)
-	im.PushFont(FONT_ICONS)
+	im.PushFontFloat(FONT_ICONS, ICON_SIZE)
 	native := im.CalcTextSize(icon_s)
 	im.PopFont()
 
