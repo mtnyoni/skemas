@@ -230,6 +230,21 @@ pg_get_schemas :: proc(conn: ^pq.Conn) -> ([]string, DB_Error) {
 	return result, nil
 }
 
+pg_get_all_db_schemas :: proc(conn: PQ_Conn, dbs: []string) -> map[string][]string {
+	result := make(map[string][]string)
+	for db in dbs {
+		temp_conn, err := pg_connect_to_db(conn, db)
+		if err != nil {continue}
+		schemas, serr := pg_get_schemas(temp_conn)
+		pq.finish(temp_conn^)
+		free(temp_conn)
+		if serr == nil {
+			result[db] = schemas
+		}
+	}
+	return result
+}
+
 pg_get_table_row_counts :: proc(conn: ^pq.Conn, schema: string) -> map[string]i64 {
 	sql: cstring = `
 		SELECT relname, n_live_tup

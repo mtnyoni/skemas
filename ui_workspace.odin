@@ -17,6 +17,8 @@ UIWorkspace :: proc(state: ^App_State) {
 	@(static) schemas_loaded: bool
 	@(static) selected_schema: string
 	@(static) prev_selected_schema: string
+	@(static) db_schemas: map[string][]string
+	@(static) db_schemas_loaded: bool
 
 	// Shared
 	@(static) loaded_tables: []string
@@ -41,6 +43,8 @@ UIWorkspace :: proc(state: ^App_State) {
 			schemas_loaded = &schemas_loaded,
 			selected_schema = &selected_schema,
 			prev_selected_schema = &prev_selected_schema,
+			db_schemas = &db_schemas,
+			db_schemas_loaded = &db_schemas_loaded,
 			loaded_tables = &loaded_tables,
 			tables_loaded = &tables_loaded,
 			selected_table = &selected_table,

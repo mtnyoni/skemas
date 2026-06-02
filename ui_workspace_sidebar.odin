@@ -16,6 +16,8 @@ Workspace_SidebarProps :: struct {
 	schemas_loaded:       ^bool,
 	selected_schema:      ^string,
 	prev_selected_schema: ^string,
+	db_schemas:           ^map[string][]string,
+	db_schemas_loaded:    ^bool,
 	loaded_tables:        ^[]string,
 	tables_loaded:        ^bool,
 	selected_table:       ^string,
@@ -51,6 +53,14 @@ Workspace_Sidebar :: proc(props: Workspace_SidebarProps) {
 			props.selected_table^ = ""
 			props.query_result^ = {}
 			props.prev_selected_table^ = ""
+			props.db_schemas_loaded^ = false
+			delete(props.db_schemas^)
+			props.db_schemas^ = {}
+		}
+
+		if !props.db_schemas_loaded^ && len(props.loaded_dbs^) > 0 {
+			props.db_schemas^ = pg_get_all_db_schemas(pg_conn, props.loaded_dbs^)
+			props.db_schemas_loaded^ = true
 		}
 
 		if props.selected_db^ != props.prev_selected_db^ {
@@ -145,7 +155,7 @@ Workspace_Sidebar :: proc(props: Workspace_SidebarProps) {
 		if _, ok := props.state.conn.(PQ_Conn); ok {
 			draw_db_schema_dropdown(
 				props.loaded_dbs^,
-				props.loaded_schemas^,
+				props.db_schemas^,
 				props.selected_db,
 				props.selected_schema,
 			)
@@ -262,7 +272,7 @@ DB_SCHEMA_POPUP_NAME :: "##db_schema_dual_popup"
 
 draw_db_schema_dropdown :: proc(
 	loaded_dbs: []string,
-	loaded_schemas: []string,
+	db_schemas: map[string][]string,
 	selected_db: ^string,
 	selected_schema: ^string,
 ) {
@@ -307,11 +317,16 @@ draw_db_schema_dropdown :: proc(
 	im.PopStyleColor(4)
 	im.PopStyleVar(3)
 
+	btn_min := im.GetItemRectMin()
+	btn_max := im.GetItemRectMax()
+	im.SetNextWindowPos({btn_min.x, btn_max.y + 2}, .Always)
 	im.SetNextWindowSize({600, 280}, .Always)
 	im.PushStyleVarImVec2(.WindowPadding, {12, 12})
+	im.PushStyleColorImVec4(.PopupBg, COLOR_MUTED_BACKGROUND)
 
 	if im.BeginPopup(DB_SCHEMA_POPUP_NAME) {
-		im.PopStyleVar() // Pop it right here as soon as the popup context successfully initializes
+		im.PopStyleVar()   // WindowPadding
+		im.PopStyleColor() // PopupBg
 
 		if hovered_db == "" && len(loaded_dbs) > 0 {
 			hovered_db = selected_db^ != "" ? selected_db^ : loaded_dbs[0]
@@ -341,7 +356,7 @@ draw_db_schema_dropdown :: proc(
 		}
 
 		im.NextColumn()
-		active_schemas := loaded_schemas if hovered_db == selected_db^ else []string{}
+		active_schemas := db_schemas[hovered_db] if hovered_db in db_schemas else []string{}
 
 		schema_title := fmt.tprintf("%d SCHEMAS", len(active_schemas))
 		im.TextDisabled(strings.clone_to_cstring(schema_title, context.temp_allocator))
@@ -375,7 +390,8 @@ draw_db_schema_dropdown :: proc(
 		im.Columns(1)
 		im.EndPopup()
 	} else {
-		im.PopStyleVar() // Make sure to pop it here too if the popup context state isn't currently open
+		im.PopStyleVar()
+		im.PopStyleColor()
 	}
 }
 
