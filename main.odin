@@ -119,8 +119,10 @@ main :: proc() {
 	defer sqlite.close(db)
 
 	state := App_State {
-		app_db = db,
-		screen = .ConnectionScreen,
+		app_db       = db,
+		screen       = .ConnectionScreen,
+		current_page = 1,
+		total_pages  = 1,
 	}
 
 	err := create_tables(db)

@@ -16,6 +16,8 @@ Workspace_SidebarProps :: struct {
 	schemas_loaded:       ^bool,
 	selected_schema:      ^string,
 	prev_selected_schema: ^string,
+	db_schemas:           ^map[string][]string,
+	db_schemas_loaded:    ^bool,
 	loaded_tables:        ^[]string,
 	tables_loaded:        ^bool,
 	selected_table:       ^string,
@@ -51,6 +53,14 @@ Workspace_Sidebar :: proc(props: Workspace_SidebarProps) {
 			props.selected_table^ = ""
 			props.query_result^ = {}
 			props.prev_selected_table^ = ""
+			props.db_schemas_loaded^ = false
+			delete(props.db_schemas^)
+			props.db_schemas^ = {}
+		}
+
+		if !props.db_schemas_loaded^ && len(props.loaded_dbs^) > 0 {
+			props.db_schemas^ = pg_get_all_db_schemas(pg_conn, props.loaded_dbs^)
+			props.db_schemas_loaded^ = true
 		}
 
 		if props.selected_db^ != props.prev_selected_db^ {
@@ -116,35 +126,63 @@ Workspace_Sidebar :: proc(props: Workspace_SidebarProps) {
 			props.prev_selected_table^ = props.selected_table^
 		}
 
-		im.SetNextWindowPos({0, 0}, .Always)
-		im.SetNextWindowSize({SIDEBAR_WIDTH, props.display_h - WORKSPACE_STATUS_BAR_H}, .Always)
+	case SQLite_Conn:
+		sq_conn := conn
 
-		im.PushStyleVar(.WindowBorderSize, 0)
-		defer im.PopStyleVar()
+		if !props.tables_loaded^ || props.state.db_needs_reload {
+			props.state.db_needs_reload = false
+			props.loaded_tables^ = sqlite_get_tables(sq_conn)
+			props.tables_loaded^ = true
+			props.selected_table^ = ""
+			props.query_result^ = {}
+			props.prev_selected_table^ = ""
+		}
 
-		im.Begin("DBs", nil, {.NoMove, .NoResize, .NoCollapse, .NoScrollbar, .NoTitleBar})
-		defer im.End()
+		if props.selected_table^ != props.prev_selected_table^ {
+			props.query_result^ = {}
+			props.query_time_ms^ = 0
+			if props.selected_table^ != "" {
+				q := fmt.tprintf(`SELECT * FROM "%s" LIMIT 1000`, props.selected_table^)
+				t := time.tick_now()
+				result, err := sqlite_run_query(sq_conn, q)
+				props.query_time_ms^ = time.duration_milliseconds(time.tick_since(t))
+				if err == nil {props.query_result^ = result}
+			}
+			props.prev_selected_table^ = props.selected_table^
+		}
+	}
 
-		DB_Servers_Select(
-			{
-				schemas_loaded = props.schemas_loaded,
-				prev_selected_schema = props.prev_selected_schema,
-				selected_schema = props.selected_schema,
-				loaded_schemas = props.loaded_schemas,
-				tables_loaded = props.tables_loaded,
-				selected_table = props.selected_table,
-				prev_selected_table = props.prev_selected_table,
-				loaded_tables = props.loaded_tables,
-				query_result = props.query_result,
-				query_time_ms = props.query_time_ms,
-				pg_major_version = props.pg_major_version,
-				state = props.state,
-			},
-		)
+	// Shared sidebar window
+	im.SetNextWindowPos({0, 0}, .Always)
+	im.SetNextWindowSize({SIDEBAR_WIDTH, props.display_h - WORKSPACE_STATUS_BAR_H}, .Always)
+	im.PushStyleVar(.WindowBorderSize, 0)
+	defer im.PopStyleVar()
+	im.Begin("##sidebar", nil, {.NoMove, .NoResize, .NoCollapse, .NoScrollbar, .NoTitleBar})
+	defer im.End()
 
+	DB_Servers_Select(
+		{
+			schemas_loaded = props.schemas_loaded,
+			prev_selected_schema = props.prev_selected_schema,
+			selected_schema = props.selected_schema,
+			loaded_schemas = props.loaded_schemas,
+			tables_loaded = props.tables_loaded,
+			selected_table = props.selected_table,
+			prev_selected_table = props.prev_selected_table,
+			loaded_tables = props.loaded_tables,
+			query_result = props.query_result,
+			query_time_ms = props.query_time_ms,
+			pg_major_version = props.pg_major_version,
+			state = props.state,
+		},
+	)
+
+	// Connection-specific UI
+	switch conn in props.state.conn {
+	case PQ_Conn:
 		draw_db_schema_dropdown(
 			props.loaded_dbs^,
-			props.loaded_schemas^,
+			props.db_schemas^,
 			props.selected_db,
 			props.selected_schema,
 		)
@@ -154,7 +192,7 @@ Workspace_Sidebar :: proc(props: Workspace_SidebarProps) {
 		im.TextDisabled("Tables")
 		im.PopFont()
 
-		im.PushFont(FONT_REGULAR_SM)
+		im.PushFont(FONT_REGULAR_XS)
 		count_lbl := strings.clone_to_cstring(
 			fmt.tprintf("%d", len(props.loaded_tables^)),
 			context.temp_allocator,
@@ -180,43 +218,17 @@ Workspace_Sidebar :: proc(props: Workspace_SidebarProps) {
 		im.EndChild()
 
 	case SQLite_Conn:
-		sq_conn := conn
-
-		if !props.tables_loaded^ || props.state.db_needs_reload {
-			props.state.db_needs_reload = false
-			props.loaded_tables^ = sqlite_get_tables(sq_conn)
-			props.tables_loaded^ = true
-			props.selected_table^ = ""
-			props.query_result^ = {}
-			props.prev_selected_table^ = ""
-		}
-
-		if props.selected_table^ != props.prev_selected_table^ {
-			props.query_result^ = {}
-			props.query_time_ms^ = 0
-			if props.selected_table^ != "" {
-				q := fmt.tprintf(`SELECT * FROM "%s" LIMIT 1000`, props.selected_table^)
-				t := time.tick_now()
-				result, err := sqlite_run_query(sq_conn, q)
-				props.query_time_ms^ = time.duration_milliseconds(time.tick_since(t))
-				if err == nil {props.query_result^ = result}
-			}
-			props.prev_selected_table^ = props.selected_table^
-		}
-
-		im.SetNextWindowPos({0, 0}, .Always)
-		im.SetNextWindowSize({SIDEBAR_WIDTH, props.display_h - WORKSPACE_STATUS_BAR_H}, .Always)
-		im.Begin("Tables", nil, {.NoMove, .NoResize, .NoCollapse, .NoScrollbar, .NoTitleBar})
-		defer im.End()
-
-		im.PushFont(FONT_REGULAR_SM)
+		im.PushFont(FONT_REGULAR)
 		im.TextDisabled("Tables")
+		im.PopFont()
+
 		sq_count_lbl := strings.clone_to_cstring(
 			fmt.tprintf("%d", len(props.loaded_tables^)),
 			context.temp_allocator,
 		)
 		sq_count_w := im.CalcTextSize(sq_count_lbl).x
 		im.SameLine(im.GetWindowWidth() - im.GetStyle().WindowPadding.x - sq_count_w)
+		im.PushFont(FONT_REGULAR_XS)
 		im.PushStyleColorImVec4(.Text, COLOR_MUTED_FOREGROUND)
 		im.TextUnformatted(sq_count_lbl)
 		im.PopStyleColor()
@@ -231,15 +243,15 @@ Workspace_Sidebar :: proc(props: Workspace_SidebarProps) {
 			}
 
 			if props.selected_table^ == tbl {
-				count_lbl := strings.clone_to_cstring(
+				row_count_lbl := strings.clone_to_cstring(
 					fmt.tprintf("%d", len(props.query_result^.rows)),
 					context.temp_allocator,
 				)
-				im.PushFont(FONT_REGULAR_SM)
-				count_w := im.CalcTextSize(count_lbl).x
-				im.SameLine(im.GetWindowWidth() - im.GetStyle().WindowPadding.x * 2 - count_w)
+				im.PushFont(FONT_REGULAR_XS)
+				row_count_w := im.CalcTextSize(row_count_lbl).x
+				im.SameLine(im.GetWindowWidth() - im.GetStyle().WindowPadding.x * 2 - row_count_w)
 				im.PushStyleColorImVec4(.Text, COLOR_MUTED_FOREGROUND)
-				im.TextUnformatted(count_lbl)
+				im.TextUnformatted(row_count_lbl)
 				im.PopStyleColor()
 				im.PopFont()
 			}
@@ -260,7 +272,7 @@ DB_SCHEMA_POPUP_NAME :: "##db_schema_dual_popup"
 
 draw_db_schema_dropdown :: proc(
 	loaded_dbs: []string,
-	loaded_schemas: []string,
+	db_schemas: map[string][]string,
 	selected_db: ^string,
 	selected_schema: ^string,
 ) {
@@ -305,20 +317,23 @@ draw_db_schema_dropdown :: proc(
 	im.PopStyleColor(4)
 	im.PopStyleVar(3)
 
-	im.SetNextWindowSize({600, 280}, .Appearing)
+	btn_min := im.GetItemRectMin()
+	btn_max := im.GetItemRectMax()
+	im.SetNextWindowPos({btn_min.x, btn_max.y + 2}, .Always)
+	im.SetNextWindowSize({600, 280}, .Always)
 	im.PushStyleVarImVec2(.WindowPadding, {12, 12})
+	im.PushStyleColorImVec4(.PopupBg, COLOR_BACKGROUND)
 
 	if im.BeginPopup(DB_SCHEMA_POPUP_NAME) {
-		im.PopStyleVar() // Pop it right here as soon as the popup context successfully initializes
+		im.PopStyleVar() // WindowPadding
+		im.PopStyleColor() // PopupBg
 
 		if hovered_db == "" && len(loaded_dbs) > 0 {
 			hovered_db = selected_db^ != "" ? selected_db^ : loaded_dbs[0]
 		}
 
 		im.Columns(2, "##db_schema_cols", true)
-		if im.GetColumnWidth(0) == 0 {
-			im.SetColumnWidth(0, 180)
-		}
+		im.SetColumnWidth(0, 200)
 
 		im.TextDisabled("DATABASES")
 		im.Separator()
@@ -341,7 +356,7 @@ draw_db_schema_dropdown :: proc(
 		}
 
 		im.NextColumn()
-		active_schemas := loaded_schemas if hovered_db == selected_db^ else []string{}
+		active_schemas := db_schemas[hovered_db] if hovered_db in db_schemas else []string{}
 
 		schema_title := fmt.tprintf("%d SCHEMAS", len(active_schemas))
 		im.TextDisabled(strings.clone_to_cstring(schema_title, context.temp_allocator))
@@ -375,7 +390,8 @@ draw_db_schema_dropdown :: proc(
 		im.Columns(1)
 		im.EndPopup()
 	} else {
-		im.PopStyleVar() // Make sure to pop it here too if the popup context state isn't currently open
+		im.PopStyleVar()
+		im.PopStyleColor()
 	}
 }
 
@@ -462,19 +478,23 @@ DB_Servers_Select :: proc(props: DB_Servers_SelectProps) {
 					conn  = &new_conn_data,
 				}
 
-				// Reset all state for the old connection immediately
+				// Reset shared state
 				props.state.conn_status = .Connecting
-				props.schemas_loaded^ = false
-				props.prev_selected_schema^ = ""
-				props.selected_schema^ = ""
-				props.loaded_schemas^ = nil
 				props.tables_loaded^ = false
 				props.selected_table^ = ""
 				props.prev_selected_table^ = ""
 				props.loaded_tables^ = nil
 				props.query_result^ = {}
 				props.query_time_ms^ = 0
-				props.pg_major_version^ = 0
+
+				// Reset Postgres-only state
+				if conn.db_type == .Postgres {
+					props.schemas_loaded^ = false
+					props.prev_selected_schema^ = ""
+					props.selected_schema^ = ""
+					props.loaded_schemas^ = nil
+					props.pg_major_version^ = 0
+				}
 
 				switch conn.db_type {
 				case .Postgres:

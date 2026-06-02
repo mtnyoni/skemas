@@ -316,7 +316,7 @@ Connection_Form :: proc(props: Connection_FormProps) {
 	defer im.PopStyleVar(3)
 	defer im.PopStyleColor(4)
 
-	im.Text("Name")
+	im.TextDisabled("Name")
 	im.SetNextItemWidth(-1)
 	im.InputText("##name", cast(cstring)&props.name_buf[0], len(props.name_buf))
 
@@ -326,7 +326,9 @@ Connection_Form :: proc(props: Connection_FormProps) {
 	}
 
 	im.Spacing()
-	im.Text("Database Type")
+	im.PushFont(FONT_REGULAR_SM)
+	im.TextDisabled("Database Type")
+	im.PopFont()
 	im.SetNextItemWidth(-1)
 	db_type_combo := im.BeginCombo("##db_type", db_type_labels[props.db_type^], {.NoArrowButton})
 	{
@@ -357,7 +359,9 @@ Connection_Form :: proc(props: Connection_FormProps) {
 	#partial switch props.db_type^ {
 	case .SQLite:
 		im.Spacing()
-		im.Text("Path")
+		im.PushFont(FONT_REGULAR_SM)
+		im.TextDisabled("Path")
+		im.PopFont()
 		browse_lbl: cstring = "Browse..."
 		style := im.GetStyle()
 		browse_w := im.CalcTextSize(browse_lbl).x + style.FramePadding.x * 2 + style.ItemSpacing.x
@@ -376,22 +380,30 @@ Connection_Form :: proc(props: Connection_FormProps) {
 
 	case .Postgres:
 		im.Spacing()
-		im.Text("Host")
+		im.PushFont(FONT_REGULAR_SM)
+		im.TextDisabled("Host")
+		im.PopFont()
 		im.SetNextItemWidth(-1)
 		im.InputText("##host", cast(cstring)&props.host_buf[0], len(props.host_buf))
 
 		im.Spacing()
-		im.Text("Port")
+		im.PushFont(FONT_REGULAR_SM)
+		im.TextDisabled("Port")
+		im.PopFont()
 		im.SetNextItemWidth(-1)
 		im.InputInt("##port", props.port, 0, 0)
 
 		im.Spacing()
-		im.Text("Username")
+		im.PushFont(FONT_REGULAR_SM)
+		im.TextDisabled("Username")
+		im.PopFont()
 		im.SetNextItemWidth(-1)
 		im.InputText("##username", cast(cstring)&props.username_buf[0], len(props.username_buf))
 
 		im.Spacing()
-		im.Text("Password")
+		im.PushFont(FONT_REGULAR_SM)
+		im.TextDisabled("Password")
+		im.PopFont()
 		im.SetNextItemWidth(-1)
 		im.InputText(
 			"##password",
