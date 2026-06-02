@@ -13,7 +13,7 @@ PostgreSQL and SQLite only until both work perfectly and efficiently.
 
 ## Icons
 
-- [ ] Add more icons
+- [x] Add more icons
 
 ## Data Browser
 
@@ -36,7 +36,7 @@ PostgreSQL and SQLite only until both work perfectly and efficiently.
 
 ## SQLite
 
-- [ ] Able to select saved servers whilst connected to Sqlite
+- [x] Able to select saved servers whilst connected to Sqlite
 
 ## Infrastructure
 
