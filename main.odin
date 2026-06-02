@@ -63,7 +63,7 @@ main :: proc() {
 	dpi_scale := sdl.GetWindowDisplayScale(window)
 
 	io := im.GetIO()
-	load_fonts(io, dpi_scale)
+	load_fonts(io)
 
 	io.ConfigFlags += {.DockingEnable}
 	im.StyleColorsLight()
@@ -154,7 +154,7 @@ main :: proc() {
 		if new_dpi != dpi_scale {
 			dpi_scale = new_dpi
 			im.FontAtlas_Clear(io.Fonts)
-			load_fonts(io, dpi_scale)
+			load_fonts(io)
 			apply_style(style, base_style, dpi_scale)
 		}
 

@@ -57,24 +57,24 @@ FONT_REGULAR: ^im.Font
 FONT_MEDIUM:  ^im.Font
 FONT_ICONS:   ^im.Font
 
-load_fonts :: proc(io: ^im.IO, dpi_scale: f32) {
+load_fonts :: proc(io: ^im.IO) {
 	FONT_REGULAR = im.FontAtlas_AddFontFromFileTTF(
 		io.Fonts,
 		"fonts/Inter_18pt-Regular.ttf",
-		FONT_SIZE_BASE * dpi_scale,
+		FONT_SIZE_BASE,
 	)
 
 	FONT_MEDIUM = im.FontAtlas_AddFontFromFileTTF(
 		io.Fonts,
 		"fonts/Inter_18pt-Medium.ttf",
-		FONT_SIZE_BASE * dpi_scale,
+		FONT_SIZE_BASE,
 	)
 
 	@(static) icon_ranges := [?]im.Wchar{0xF000, 0xF01F, 0}
 	FONT_ICONS = im.FontAtlas_AddFontFromFileTTF(
 		io.Fonts,
 		"fonts/icons.ttf",
-		FONT_SIZE_BASE * dpi_scale,
+		FONT_SIZE_BASE,
 		nil,
 		&icon_ranges[0],
 	)

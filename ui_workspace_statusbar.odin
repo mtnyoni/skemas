@@ -25,7 +25,7 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 	im.Begin(
 		"##statusbar",
 		nil,
-		{.NoMove, .NoResize, .NoCollapse, .NoTitleBar, .NoScrollbar, .NoScrollWithMouse},
+		{.NoMove, .NoResize, .NoCollapse, .NoTitleBar, .NoScrollbar, .NoScrollWithMouse, .NoDocking},
 	)
 	defer im.End()
 
@@ -42,7 +42,7 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 		1.0,
 	)
 
-	center_y := (WORKSPACE_STATUS_BAR_H - im.GetTextLineHeight()) / 2
+	center_y := (WORKSPACE_STATUS_BAR_H - FONT_SIZE_XS) / 2
 	im.SetCursorPosY(center_y)
 	connection_status_text(props.conn_status, props.pg_major_version, props.state)
 

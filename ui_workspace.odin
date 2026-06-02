@@ -64,7 +64,7 @@ UIWorkspace :: proc(state: ^App_State) {
 	im.Begin(
 		"##content",
 		nil,
-		{.NoMove, .NoResize, .NoCollapse, .NoTitleBar, .NoScrollbar, .NoScrollWithMouse},
+		{.NoMove, .NoResize, .NoCollapse, .NoTitleBar, .NoScrollbar, .NoScrollWithMouse, .NoDocking},
 	)
 	defer im.End()
 
@@ -78,12 +78,13 @@ UIWorkspace :: proc(state: ^App_State) {
 	Workspace_Content(&cp)
 
 	sb_props := StatusBar_Props {
-		y_pos = display.y - WORKSPACE_STATUS_BAR_H,
-		display_w = display.x,
-		query_time_ms = f32(query_time_ms),
-		state = state,
+		y_pos            = display.y - WORKSPACE_STATUS_BAR_H,
+		display_w        = display.x,
+		query_time_ms    = f32(query_time_ms),
+		state            = state,
 		pg_major_version = pg_major_version,
-		page_info = {current_page = &state.current_page, total_pages = &state.total_pages},
+		conn_status      = state.conn_status,
+		page_info        = {current_page = &state.current_page, total_pages = &state.total_pages},
 	}
 	StatusBar(&sb_props)
 }

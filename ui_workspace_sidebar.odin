@@ -157,7 +157,7 @@ Workspace_Sidebar :: proc(props: Workspace_SidebarProps) {
 	im.SetNextWindowSize({SIDEBAR_WIDTH, props.display_h - WORKSPACE_STATUS_BAR_H}, .Always)
 	im.PushStyleVar(.WindowBorderSize, 0)
 	defer im.PopStyleVar()
-	im.Begin("##sidebar", nil, {.NoMove, .NoResize, .NoCollapse, .NoScrollbar, .NoTitleBar})
+	im.Begin("##sidebar", nil, {.NoMove, .NoResize, .NoCollapse, .NoScrollbar, .NoTitleBar, .NoDocking})
 	defer im.End()
 
 	DB_Servers_Select(
