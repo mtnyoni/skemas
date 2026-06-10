@@ -15,8 +15,6 @@ import img "vendor:sdl3/image"
 
 apply_style :: proc(style: ^im.Style, base: im.Style, dpi_scale: f32) {
 	style^ = base
-	im.Style_ScaleAllSizes(style, dpi_scale)
-	style.FontScaleDpi = dpi_scale
 	style.ScrollbarSize = 10.0
 	style.ScrollbarRounding = 8.0
 
