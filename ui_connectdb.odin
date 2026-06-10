@@ -39,11 +39,10 @@ UIConnectDB :: proc(state: ^App_State) {
 	}
 
 	displaySize := im.GetIO().DisplaySize
+	fbScale := im.GetIO().DisplayFramebufferScale
 
-
-	// Sidebar
 	im.SetNextWindowPos({0, 0}, .Always)
-	im.SetNextWindowSize({SIDEBAR_WIDTH, displaySize.y}, .Always)
+	im.SetNextWindowSize({SIDEBAR_WIDTH, displaySize.y * fbScale.y}, .Always)
 	im.PushStyleColorImVec4(.WindowBg, COLOR_BACKGROUND)
 	defer im.PopStyleColor()
 	im.Begin("Connections", nil, {.NoMove, .NoResize, .NoCollapse, .NoTitleBar, .NoScrollbar})

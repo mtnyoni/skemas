@@ -8,7 +8,7 @@ import "core:strings"
 import sqlite "vendor/odin-sqlite3"
 
 
-connect :: proc() -> (^sqlite.Connection, DB_Error) {
+db_connect :: proc() -> (^sqlite.Connection, DB_Error) {
 	dir: string
 	when ODIN_OS == .Windows {
 		appdata := os.get_env("APPDATA", context.temp_allocator)
@@ -453,7 +453,9 @@ delete_connection :: proc(db: ^sqlite.Connection, conn_id: string, cred_id: stri
 		return DB_ExecFailed{message = strings.clone_from_cstring(sqlite.errmsg(db))}
 	}
 
-	destr := sqlite.Destructor{behaviour = .Static}
+	destr := sqlite.Destructor {
+		behaviour = .Static,
+	}
 
 	del_conn_sql: cstring = `DELETE FROM connections WHERE id = ?`
 	stmt: ^sqlite.Statement

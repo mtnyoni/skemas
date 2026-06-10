@@ -16,8 +16,10 @@ import img "vendor:sdl3/image"
 apply_style :: proc(style: ^im.Style, base: im.Style, dpi_scale: f32) {
 	style^ = base
 	im.Style_ScaleAllSizes(style, dpi_scale)
+	style.FontScaleDpi = dpi_scale
 	style.ScrollbarSize = 10.0
 	style.ScrollbarRounding = 8.0
+
 	style.Colors[im.Col.WindowBg] = COLOR_BACKGROUND
 	style.Colors[im.Col.ChildBg] = COLOR_BACKGROUND
 	style.Colors[im.Col.PopupBg] = COLOR_BACKGROUND
@@ -29,7 +31,11 @@ apply_style :: proc(style: ^im.Style, base: im.Style, dpi_scale: f32) {
 	style.Colors[im.Col.HeaderHovered] = COLOR_MUTED_BACKGROUND
 	style.Colors[im.Col.HeaderActive] = COLOR_MUTED_BACKGROUND
 	style.Colors[im.Col.ScrollbarBg] = COLOR_BACKGROUND
+
 }
+
+DEFAULT_WIN_W :: 1080
+DEFAULT_WIN_H :: 640
 
 main :: proc() {
 	track: mem.Tracking_Allocator
@@ -40,7 +46,13 @@ main :: proc() {
 	assert(sdl.Init(sdl.INIT_VIDEO))
 	defer sdl.Quit()
 
-	window := sdl.CreateWindow("Skemas", 1280, 720, {.RESIZABLE, .HIGH_PIXEL_DENSITY})
+
+	window := sdl.CreateWindow(
+		"Skemas",
+		DEFAULT_WIN_W,
+		DEFAULT_WIN_H,
+		{.RESIZABLE, .HIGH_PIXEL_DENSITY},
+	)
 	assert(window != nil)
 	defer sdl.DestroyWindow(window)
 
@@ -83,7 +95,7 @@ main :: proc() {
 
 	running := true
 
-	db, db_err := connect()
+	db, db_err := db_connect()
 	if db_err != nil {
 		log.errorf("%v", db_err)
 		panic(db_err.(DB_OpenFailed).message)
@@ -134,6 +146,7 @@ main :: proc() {
 					thread.destroy(health_thread)
 					health_thread = nil
 				}
+
 				health_thread = pg_spawn_health_check(&health_checker, pg_conn)
 			}
 
@@ -143,6 +156,7 @@ main :: proc() {
 				thread.destroy(health_thread)
 				health_thread = nil
 			}
+
 			health_checker = {}
 			health_checker.status = .Disconnected
 			pq.finish(prev_pg_conn^)
@@ -153,11 +167,8 @@ main :: proc() {
 		new_dpi := sdl.GetWindowDisplayScale(window)
 		if new_dpi != dpi_scale {
 			dpi_scale = new_dpi
-			im.FontAtlas_Clear(io.Fonts)
-			load_fonts(io)
 			apply_style(style, base_style, dpi_scale)
 		}
-
 		imgui_sql_renderer.NewFrame()
 		imgui_impl_sdl3.NewFrame()
 		im.NewFrame()
@@ -172,6 +183,7 @@ main :: proc() {
 
 		im.Render()
 
+		sdl.SetRenderScale(renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y)
 		sdl.SetRenderDrawColor(
 			renderer,
 			u8(COLOR_BACKGROUND.x * 255),
