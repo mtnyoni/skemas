@@ -303,15 +303,15 @@ draw_db_schema_dropdown :: proc(
 		item_min := im.GetItemRectMin()
 		item_max := im.GetItemRectMax()
 		frame_h := im.GetFrameHeight()
-		padding := im.GetStyle().FramePadding
-		chevron_buf: [5]u8
-		im.DrawList_AddTextImFontPtr(
+		draw_icon(
 			im.GetWindowDrawList(),
-			FONT_ICONS,
+			ICON_CHEVRON_DOWN,
+			{
+				item_max.x - frame_h + (frame_h - ICON_SIZE) * 0.5,
+				item_min.y + (frame_h - ICON_SIZE) * 0.5,
+			},
 			ICON_SIZE,
-			{item_max.x - frame_h + padding.x, item_min.y + padding.y},
 			im.GetColorU32ImVec4(COLOR_MUTED_FOREGROUND),
-			icon_str(.ChevronDown, &chevron_buf),
 		)
 	}
 	im.PopStyleColor(4)
@@ -441,15 +441,15 @@ DB_Servers_Select :: proc(props: DB_Servers_SelectProps) {
 		item_min := im.GetItemRectMin()
 		item_max := im.GetItemRectMax()
 		frame_h := im.GetFrameHeight()
-		padding := im.GetStyle().FramePadding
-		chevron_buf: [5]u8
-		im.DrawList_AddTextImFontPtr(
+		draw_icon(
 			im.GetWindowDrawList(),
-			FONT_ICONS,
+			ICON_CHEVRON_DOWN,
+			{
+				item_max.x - frame_h + (frame_h - ICON_SIZE) * 0.5,
+				item_min.y + (frame_h - ICON_SIZE) * 0.5,
+			},
 			ICON_SIZE,
-			{item_max.x - frame_h + padding.x, item_min.y + padding.y},
 			im.GetColorU32ImVec4(COLOR_MUTED_FOREGROUND),
-			icon_str(.ChevronDown, &chevron_buf),
 		)
 	}
 

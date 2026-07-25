@@ -64,7 +64,15 @@ UIWorkspace :: proc(state: ^App_State) {
 	im.Begin(
 		"##content",
 		nil,
-		{.NoMove, .NoResize, .NoCollapse, .NoTitleBar, .NoScrollbar, .NoScrollWithMouse, .NoDocking},
+		{
+			.NoMove,
+			.NoResize,
+			.NoCollapse,
+			.NoTitleBar,
+			.NoScrollbar,
+			.NoScrollWithMouse,
+			.NoDocking,
+		},
 	)
 	defer im.End()
 
@@ -78,13 +86,13 @@ UIWorkspace :: proc(state: ^App_State) {
 	Workspace_Content(&cp)
 
 	sb_props := StatusBar_Props {
-		y_pos            = display.y - WORKSPACE_STATUS_BAR_H,
-		display_w        = display.x,
-		query_time_ms    = f32(query_time_ms),
-		state            = state,
+		y_pos = display.y - WORKSPACE_STATUS_BAR_H,
+		display_w = display.x,
+		query_time_ms = f32(query_time_ms),
+		state = state,
 		pg_major_version = pg_major_version,
-		conn_status      = state.conn_status,
-		page_info        = {current_page = &state.current_page, total_pages = &state.total_pages},
+		conn_status = state.conn_status,
+		page_info = {current_page = &state.current_page, total_pages = &state.total_pages},
 	}
 	StatusBar(&sb_props)
 }
@@ -145,19 +153,10 @@ Workspace_Content :: proc(props: ^Workspace_ContentProps) {
 	// Toolbar buttons — inherit shared style, no per-button push/pop needed.
 	style := im.GetStyle()
 
-	refresh_buf: [5]u8
-	refresh_s := icon_str(.Refresh, &refresh_buf)
-	plus_buf: [5]u8
-	plus_s := icon_str(.Plus, &plus_buf)
-
-	im.PushFontFloat(FONT_ICONS, ICON_SIZE)
-	plus_icon_w := im.CalcTextSize(plus_s).x
-	im.PopFont()
-
 	btn_h := im.GetFrameHeight()
 	refresh_w := ICON_SIZE + style.FramePadding.x * 2
 	row_text_sz := im.CalcTextSize("Row")
-	row_w := plus_icon_w + 4 + row_text_sz.x + style.FramePadding.x * 2
+	row_w := ICON_SIZE + 4 + row_text_sz.x + style.FramePadding.x * 2
 	right_x :=
 		im.GetWindowWidth() - style.WindowPadding.x - row_w - refresh_w - style.ItemSpacing.x
 
@@ -182,13 +181,12 @@ Workspace_Content :: proc(props: ^Workspace_ContentProps) {
 			im.GetColorU32ImVec4(COLOR_BORDER),
 			4,
 		)
-		im.DrawList_AddTextImFontPtr(
+		draw_icon(
 			dl,
-			FONT_ICONS,
-			ICON_SIZE,
+			ICON_ARROW_PATH,
 			{pos.x + style.FramePadding.x, pos.y + (btn_h - ICON_SIZE) * 0.5},
+			ICON_SIZE,
 			im.GetColorU32(.Text),
-			refresh_s,
 		)
 	}
 
@@ -199,28 +197,27 @@ Workspace_Content :: proc(props: ^Workspace_ContentProps) {
 		im.InvisibleButton("##add_row", {row_w, btn_h})
 
 		hovered := im.IsItemHovered()
-		dl := im.GetWindowDrawList()
+		dlist := im.GetWindowDrawList()
 		bg := im.GetColorU32ImVec4(COLOR_MUTED_BACKGROUND if hovered else COLOR_BACKGROUND)
-		im.DrawList_AddRectFilled(dl, pos, {pos.x + row_w, pos.y + btn_h}, bg, 4)
+		im.DrawList_AddRectFilled(dlist, pos, {pos.x + row_w, pos.y + btn_h}, bg, 4)
 		im.DrawList_AddRect(
-			dl,
+			dlist,
 			pos,
 			{pos.x + row_w, pos.y + btn_h},
 			im.GetColorU32ImVec4(COLOR_BORDER),
-			4,
+			0,
 		)
 		icon_x := pos.x + style.FramePadding.x
-		im.DrawList_AddTextImFontPtr(
-			dl,
-			FONT_ICONS,
-			ICON_SIZE,
+		draw_icon(
+			dlist,
+			ICON_PLUS,
 			{icon_x, pos.y + (btn_h - ICON_SIZE) * 0.5},
+			ICON_SIZE,
 			im.GetColorU32(.Text),
-			plus_s,
 		)
 		im.DrawList_AddText(
-			dl,
-			{icon_x + plus_icon_w + 4, pos.y + (btn_h - row_text_sz.y) * 0.5},
+			dlist,
+			{icon_x + ICON_SIZE + 4, pos.y + (btn_h - row_text_sz.y) * 0.5},
 			im.GetColorU32(.Text),
 			"Row",
 		)
@@ -300,15 +297,35 @@ Workspace_Content :: proc(props: ^Workspace_ContentProps) {
 			im.PopStyleColor(2)
 			im.PopFont()
 
+			active_cell_text: string
+			cell_popup_opened := false
+
 			for row in props.query_result^.rows {
 				im.TableNextRow()
 				for cell, col in row {
 					im.TableSetColumnIndex(c.int(col))
 					ccell := strings.clone_to_cstring(cell)
 					defer delete(ccell)
-					im.TextUnformatted(ccell)
+
+					im.Selectable(ccell)
+					if im.IsItemClicked(.Right) {
+						active_cell_text = cell
+						im.OpenPopup("CellActions")
+					}
+
 				}
 			}
+
+			if im.BeginPopup("CellActions") {
+				if im.MenuItem("Copy") {
+					c_active := strings.clone_to_cstring(active_cell_text)
+					defer delete(c_active)
+					im.SetClipboardText(c_active)
+				}
+
+				im.EndPopup()
+			}
+
 			im.EndTable()
 		}
 		im.PopStyleColor() // TableBorderLight
@@ -323,15 +340,8 @@ draw_filter_button :: proc() {
 	GAP :: f32(3)
 	ROUNDING :: f32(4)
 
-	icon_buf: [5]u8
-	icon_s := icon_str(.Filter, &icon_buf)
-	im.PushFontFloat(FONT_ICONS, ICON_SIZE)
-	native := im.CalcTextSize(icon_s)
-	im.PopFont()
-
-	scale := ICON_SIZE / 16.0
-	icon_w := native.x * scale
-	icon_h := native.y * scale
+	icon_w := ICON_SIZE
+	icon_h := ICON_SIZE
 	label_sz := im.CalcTextSize("Filter")
 
 	btn_w := PAD_X * 2 + icon_w + SPACING + label_sz.x
@@ -395,13 +405,12 @@ draw_filter_button :: proc() {
 	im.DrawList_PathStroke(dl, col)
 
 	text_color := im.GetColorU32ImVec4(COLOR_MUTED_FOREGROUND)
-	im.DrawList_AddTextImFontPtr(
+	draw_icon(
 		dl,
-		FONT_ICONS,
-		ICON_SIZE,
+		ICON_FUNNEL,
 		{x1 + PAD_X, y1 + (btn_h - icon_h) * 0.5},
+		ICON_SIZE,
 		text_color,
-		icon_s,
 	)
 
 	im.DrawList_AddText(

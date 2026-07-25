@@ -34,6 +34,7 @@ App_State :: struct {
 	read_only:       bool,
 	current_page:    int,
 	total_pages:     int,
+	stmt:            ^string,
 }
 
 SQLITE_NULL :: c.int(5)

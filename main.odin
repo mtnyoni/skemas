@@ -67,6 +67,11 @@ main :: proc() {
 	defer sdl.DestroyRenderer(renderer)
 	sdl.SetRenderVSync(renderer, 1)
 
+	if !init_icon_textures(renderer) {
+		panic("Failed to initialize icon textures")
+	}
+	defer destroy_icon_textures()
+
 	im.CreateContext()
 	defer im.DestroyContext()
 

@@ -126,20 +126,11 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 	im.PopFont()
 	of_w := im.CalcTextSize("of").x
 	NAV_ICON_SIZE :: f32(11.0)
-	chevron_buf: [5]u8
-	im.PushFontFloat(FONT_ICONS, NAV_ICON_SIZE)
-	nav_icon_w := im.CalcTextSize(icon_str(.ChevronRight, &chevron_buf)).x
-	im.PopFont()
-	nav_btn_w := nav_icon_w + style.FramePadding.x * 2
+	nav_btn_w := NAV_ICON_SIZE + style.FramePadding.x * 2
 	pages_w := nav_btn_w + 4 + cur_page_w + 3 + of_w + 3 + total_pages_w_val + 4 + nav_btn_w
 
 	BELL_ICON_SIZE :: f32(15.0)
-
-	bell_buf: [5]u8
-	bell_lbl := icon_str(.Bell, &bell_buf)
-	im.PushFontFloat(FONT_ICONS, BELL_ICON_SIZE)
-	bell_w := im.CalcTextSize(bell_lbl).x
-	im.PopFont()
+	bell_w := BELL_ICON_SIZE
 
 	right_total_w := pages_w + sep_w + encoding_type_w + sep_w + readonly_w + sep_w + bell_w
 	right_start := props.display_w - style.WindowPadding.x - right_total_w
@@ -170,13 +161,12 @@ StatusBar :: proc(props: ^StatusBar_Props) {
 		im.GetCursorScreenPos().x,
 		win_pos.y + (WORKSPACE_STATUS_BAR_H - BELL_ICON_SIZE) * 0.5,
 	}
-	im.DrawList_AddTextImFontPtr(
+	draw_icon(
 		draw_list,
-		FONT_ICONS,
-		BELL_ICON_SIZE,
+		ICON_BELL,
 		bell_pos,
+		BELL_ICON_SIZE,
 		im.GetColorU32ImVec4(COLOR_MUTED_FOREGROUND),
-		bell_lbl,
 	)
 	im.Dummy({bell_w, 0})
 }
@@ -329,16 +319,12 @@ PageInfo :: struct {
 draw_pagination_ctrls :: proc(page_info: PageInfo) {
 	NAV_ICON_SIZE :: f32(11.0)
 
-	nav_btn :: proc(icon: Icon, id: cstring, enabled: bool) -> bool {
+	nav_btn :: proc(icon_path: string, id: cstring, enabled: bool) -> bool {
 		style := im.GetStyle()
 		dl := im.GetWindowDrawList()
 		btn_h := im.GetTextLineHeight()
 
-		icon_buf: [5]u8
-		im.PushFontFloat(FONT_ICONS, NAV_ICON_SIZE)
-		icon_w := im.CalcTextSize(icon_str(icon, &icon_buf)).x
-		im.PopFont()
-		btn_w := icon_w + style.FramePadding.x * 2
+		btn_w := NAV_ICON_SIZE + style.FramePadding.x * 2
 
 		pos := im.GetCursorScreenPos()
 		im.PushID(id)
@@ -358,13 +344,12 @@ draw_pagination_ctrls :: proc(page_info: PageInfo) {
 
 		col := im.GetColorU32(.Text) if enabled else im.GetColorU32(.TextDisabled)
 		icon_pos := im.Vec2{pos.x + style.FramePadding.x, pos.y + (btn_h - NAV_ICON_SIZE) * 0.5}
-		im.DrawList_AddTextImFontPtr(
+		draw_icon(
 			dl,
-			FONT_ICONS,
-			NAV_ICON_SIZE,
+			icon_path,
 			icon_pos,
+			NAV_ICON_SIZE,
 			col,
-			icon_str(icon, &icon_buf),
 		)
 		return clicked
 	}
@@ -372,7 +357,7 @@ draw_pagination_ctrls :: proc(page_info: PageInfo) {
 	im.BeginGroup()
 	defer im.EndGroup()
 
-	if nav_btn(.ChevronLeft, "prev", page_info.current_page^ > 1) {
+	if nav_btn(ICON_CHEVRON_LEFT, "prev", page_info.current_page^ > 1) {
 		page_info.current_page^ -= 1
 	}
 
@@ -400,7 +385,7 @@ draw_pagination_ctrls :: proc(page_info: PageInfo) {
 	im.PopFont()
 
 	im.SameLine(0, 3)
-	if nav_btn(.ChevronRight, "next", page_info.current_page^ < page_info.total_pages^) {
+	if nav_btn(ICON_CHEVRON_RIGHT, "next", page_info.current_page^ < page_info.total_pages^) {
 		page_info.current_page^ += 1
 	}
 }
